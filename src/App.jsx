@@ -73,14 +73,14 @@ const EMPTY = { readings: [], labs: [], meds: [], docs: [], chat: [], news: null
 
 async function loadAll() {
   try {
-    const r = await window.storage.get(KEY);
-    return r ? { ...EMPTY, ...JSON.parse(r.value) } : { ...EMPTY };
+    const v = localStorage.getItem(KEY);
+    return v ? { ...EMPTY, ...JSON.parse(v) } : { ...EMPTY };
   } catch {
     return { ...EMPTY };
   }
 }
 async function saveAll(data) {
-  try { await window.storage.set(KEY, JSON.stringify(data)); } catch (e) { console.error("save failed", e); }
+  try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { console.error("save failed", e); }
 }
 
 /* ------------------------------------------------------------------ */
@@ -89,7 +89,7 @@ async function saveAll(data) {
 async function callClaude(messages, tools) {
   const body = { model: "claude-sonnet-4-6", max_tokens: 1000, messages };
   if (tools) body.tools = tools;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
