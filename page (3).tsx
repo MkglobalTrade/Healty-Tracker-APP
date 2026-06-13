@@ -1,447 +1,114 @@
 'use client';
-
-import { useEffect, useState, useCallback } from 'react';
-import { Pill, Plus, Trash2, X, Sun, Moon, Sparkles, Check, Edit3 } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Bot, Send, X, Trash2, Settings, AlertTriangle } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
-import PageHeader from '@/components/PageHeader';
-import { getMedications, saveMedication, updateMedication, deleteMedication, getApiKey } from '@/lib/storage';
+import { getChatHistory, saveChatMessage, clearChatHistory, getApiKey, saveApiKey } from '@/lib/storage';
 
-interface Medication {
-  id: string;
-  name: string;
-  dosage: string;
-  frequency: string;
-  timeOfDay: string[];
-  category: 'medication' | 'vitamin' | 'supplement' | 'insulin';
-  aiRecommendedTime?: string;
-  isActive: boolean;
-  notes?: string;
-}
+const SYS = `You are Dr. AI, a knowledgeable and caring virtual health assistant specializing in diabetes management, metabolic health, and general wellness. You are advising Mikail KOCAK, a patient with diabetes born July 23, 1979.
 
-// AI Vitamin Timing Recommendations (built-in knowledge)
-const VITAMIN_TIMING: Record<string, { bestTime: string; reason: string; withFood: boolean }> = {
-  'Vitamin D': { bestTime: 'Morning', reason: 'Best absorbed with sunlight exposure and fatty meals. May disrupt sleep if taken at night.', withFood: true },
-  'Vitamin B12': { bestTime: 'Morning', reason: 'Boosts energy and metabolism. Can interfere with sleep if taken in the evening.', withFood: false },
-  'Vitamin C': { bestTime: 'Morning/Afternoon', reason: 'Can be taken anytime, but split doses improve absorption. Avoid near bedtime.', withFood: false },
-  'Vitamin A': { bestTime: 'Morning', reason: 'Fat-soluble vitamin, take with a meal containing healthy fats.', withFood: true },
-  'Vitamin E': { bestTime: 'Evening', reason: 'Fat-soluble, take with dinner. Also has antioxidant properties that work during sleep.', withFood: true },
-  'Vitamin K': { bestTime: 'Evening', reason: 'Fat-soluble, best taken with a meal. Works synergistically with Vitamin D.', withFood: true },
-  'Iron': { bestTime: 'Morning', reason: 'Best absorbed on empty stomach. Avoid taking with calcium or dairy.', withFood: false },
-  'Calcium': { bestTime: 'Evening', reason: 'Better absorbed in smaller doses. Promotes better sleep. Separate from iron by 2+ hours.', withFood: true },
-  'Magnesium': { bestTime: 'Evening', reason: 'Promotes muscle relaxation and better sleep quality. Best taken before bed.', withFood: true },
-  'Zinc': { bestTime: 'Morning', reason: 'Best absorbed on empty stomach. Can cause nausea, so take with light food if needed.', withFood: false },
-  'Omega-3': { bestTime: 'Morning', reason: 'Take with a fatty meal for optimal absorption. Can cause fishy aftertaste at night.', withFood: true },
-  'Probiotics': { bestTime: 'Morning', reason: 'Best taken on empty stomach 30 min before breakfast for maximum survival through stomach acid.', withFood: false },
-  'Fiber': { bestTime: 'Morning', reason: 'Take with plenty of water. Best before meals to aid digestion and blood sugar control.', withFood: true },
-  'CoQ10': { bestTime: 'Morning', reason: 'Fat-soluble and energizing. Take with food. May cause insomnia if taken late.', withFood: true },
-  'Folic Acid': { bestTime: 'Morning', reason: 'B vitamin that supports energy. Take on empty stomach for best absorption.', withFood: false },
-  'Biotin': { bestTime: 'Morning', reason: 'Water-soluble B vitamin. Take anytime but morning is best for consistency.', withFood: false },
-  'Metformin': { bestTime: 'With meals', reason: 'Take with meals to reduce GI side effects. Evening dose helps with dawn phenomenon.', withFood: true },
-  'Berberine': { bestTime: 'Before meals', reason: 'Take 30 minutes before meals for optimal blood sugar control effect.', withFood: false },
-  'Chromium': { bestTime: 'Morning', reason: 'Take with breakfast to help regulate blood sugar throughout the day.', withFood: true },
-  'Alpha Lipoic Acid': { bestTime: 'Morning', reason: 'Best absorbed on empty stomach. Take 30 min before meals for nerve health benefits.', withFood: false },
-  'Cinnamon Extract': { bestTime: 'Before meals', reason: 'Take before meals to help with post-meal glucose management.', withFood: true },
-  'Turmeric/Curcumin': { bestTime: 'With meals', reason: 'Fat-soluble, needs black pepper and fat for absorption. Take with lunch or dinner.', withFood: true },
-  'Melatonin': { bestTime: 'Night', reason: 'Take 30-60 minutes before desired sleep time.', withFood: false },
-  'Ashwagandha': { bestTime: 'Evening', reason: 'Adaptogen that promotes relaxation. Best taken in the evening for stress reduction and sleep support.', withFood: true },
-};
+IMPORTANT:
+- Provide medically accurate information based on current guidelines
+- Always remind user you are AI, not a replacement for their actual doctor
+- For emergencies, direct them to call 911
+- Be empathetic, clear, professional
+- Use mg/dL for glucose
+- Reference ADA, AHA guidelines when appropriate
+- Keep responses concise but thorough
+- If outside your scope, recommend consulting a healthcare provider`;
 
-const CATEGORIES = [
-  { key: 'medication', label: 'Medication', emoji: '💊' },
-  { key: 'vitamin', label: 'Vitamin', emoji: '🧬' },
-  { key: 'supplement', label: 'Supplement', emoji: '🌿' },
-  { key: 'insulin', label: 'Insulin', emoji: '💉' },
-];
+export default function AIDoctor() {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [error, setError] = useState('');
+  const endRef = useRef<HTMLDivElement>(null);
 
-const FREQUENCIES = [
-  { key: 'once_daily', label: 'Once daily' },
-  { key: 'twice_daily', label: 'Twice daily' },
-  { key: 'three_times', label: '3x daily' },
-  { key: 'as_needed', label: 'As needed' },
-  { key: 'weekly', label: 'Weekly' },
-];
+  useEffect(() => { setMessages(getChatHistory()); setApiKey(getApiKey()); }, []);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-const TIMES_OF_DAY = [
-  { key: 'morning', label: 'Morning', emoji: '🌅' },
-  { key: 'afternoon', label: 'Afternoon', emoji: '☀️' },
-  { key: 'evening', label: 'Evening', emoji: '🌆' },
-  { key: 'night', label: 'Night', emoji: '🌙' },
-];
-
-export default function MedicationsPage() {
-  const [medications, setMedications] = useState<Medication[]>([]);
-  const [showAdd, setShowAdd] = useState(false);
-  const [editingMed, setEditingMed] = useState<Medication | null>(null);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'day' | 'night'>('all');
-  const [newMed, setNewMed] = useState({
-    name: '',
-    dosage: '',
-    frequency: 'once_daily',
-    timeOfDay: ['morning'] as string[],
-    category: 'medication' as string,
-    notes: '',
-  });
-
-  const loadData = useCallback(() => {
-    const all = getMedications();
-    setMedications(all);
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const getAiRecommendation = (name: string): { bestTime: string; reason: string; withFood: boolean } | null => {
-    const lower = name.toLowerCase();
-    for (const [key, value] of Object.entries(VITAMIN_TIMING)) {
-      if (lower.includes(key.toLowerCase()) || key.toLowerCase().includes(lower)) {
-        return value;
-      }
-    }
-    return null;
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = { id: Date.now().toString(), role: 'user', content: input.trim(), timestamp: new Date().toISOString() };
+    const updated = [...messages, userMsg];
+    setMessages(updated); saveChatMessage(userMsg); setInput(''); setLoading(true); setError('');
+    try {
+      if (!apiKey) throw new Error('API key not set. Tap ⚙️ to add your OpenAI API key.');
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'system', content: SYS }, ...updated.map((m: any) => ({ role: m.role, content: m.content }))], temperature: 0.7, max_tokens: 1000 }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || `API Error: ${res.status}`); }
+      const data = await res.json();
+      const content = data.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
+      const aiMsg = { id: (Date.now() + 1).toString(), role: 'assistant', content, timestamp: new Date().toISOString() };
+      setMessages([...updated, aiMsg]); saveChatMessage(aiMsg);
+    } catch (e: any) { setError(e.message || 'Failed to get response'); }
+    finally { setLoading(false); }
   };
 
-  const handleAdd = () => {
-    if (!newMed.name) return;
-    const aiRec = getAiRecommendation(newMed.name);
-    const med: Medication = {
-      id: Date.now().toString(),
-      name: newMed.name,
-      dosage: newMed.dosage,
-      frequency: newMed.frequency,
-      timeOfDay: newMed.timeOfDay,
-      category: newMed.category as Medication['category'],
-      aiRecommendedTime: aiRec ? `${aiRec.bestTime} — ${aiRec.reason}${aiRec.withFood ? ' (Take with food)' : ' (Take on empty stomach)'}` : undefined,
-      isActive: true,
-      notes: newMed.notes,
-    };
-
-    saveMedication(med);
-    setShowAdd(false);
-    setNewMed({
-      name: '',
-      dosage: '',
-      frequency: 'once_daily',
-      timeOfDay: ['morning'],
-      category: 'medication',
-      notes: '',
-    });
-    loadData();
-  };
-
-  const handleToggleActive = (id: string) => {
-    const med = medications.find((m) => m.id === id);
-    if (med) {
-      updateMedication(id, { isActive: !med.isActive });
-      loadData();
-    }
-  };
-
-  const handleDelete = (id: string) => {
-    deleteMedication(id);
-    loadData();
-  };
-
-  const toggleTimeOfDay = (time: string) => {
-    if (newMed.timeOfDay.includes(time)) {
-      setNewMed({ ...newMed, timeOfDay: newMed.timeOfDay.filter((t) => t !== time) });
-    } else {
-      setNewMed({ ...newMed, timeOfDay: [...newMed.timeOfDay, time] });
-    }
-  };
-
-  const filteredMeds = medications.filter((med) => {
-    if (activeFilter === 'all') return true;
-    if (activeFilter === 'day') return med.timeOfDay.some((t) => ['morning', 'afternoon'].includes(t));
-    return med.timeOfDay.some((t) => ['evening', 'night'].includes(t));
-  });
-
-  const activeMeds = medications.filter((m) => m.isActive);
-  const morningMeds = medications.filter((m) => m.isActive && m.timeOfDay.includes('morning'));
-  const afternoonMeds = medications.filter((m) => m.isActive && m.timeOfDay.includes('afternoon'));
-  const eveningMeds = medications.filter((m) => m.isActive && m.timeOfDay.includes('evening'));
-  const nightMeds = medications.filter((m) => m.isActive && m.timeOfDay.includes('night'));
-
-  const MedSection = ({ title, emoji, meds: sectionMeds }: { title: string; emoji: string; meds: Medication[] }) => {
-    if (sectionMeds.length === 0) return null;
-    return (
-      <div className="mb-4">
-        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-          <span>{emoji}</span> {title}
-        </h3>
-        <div className="space-y-2">
-          {sectionMeds.map((med) => {
-            const cat = CATEGORIES.find((c) => c.key === med.category);
-            const aiRec = med.aiRecommendedTime;
-            return (
-              <div
-                key={med.id}
-                className={`p-4 rounded-xl border transition-all ${
-                  med.isActive
-                    ? 'bg-white border-gray-100 shadow-sm'
-                    : 'bg-gray-50 border-gray-100 opacity-60'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center text-lg shrink-0">
-                    {cat?.emoji || '💊'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-800 text-sm">{med.name}</span>
-                      {med.dosage && (
-                        <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                          {med.dosage}
-                        </span>
-                      )}
-                      {aiRec && (
-                        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-sky-500 bg-sky-50 px-1.5 py-0.5 rounded-full">
-                          <Sparkles size={10} />
-                          AI
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {FREQUENCIES.find((f) => f.key === med.frequency)?.label}
-                    </p>
-                    {aiRec && (
-                      <div className="mt-2 p-2.5 bg-sky-50 rounded-lg border border-sky-100">
-                        <p className="text-[11px] text-sky-700 leading-relaxed">
-                          <span className="font-semibold">✨ AI Tip:</span> {aiRec}
-                        </p>
-                      </div>
-                    )}
-                    {med.notes && (
-                      <p className="text-xs text-gray-400 mt-1 italic">{med.notes}</p>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <button
-                      onClick={() => handleToggleActive(med.id)}
-                      className={`p-1.5 rounded-lg transition-colors ${
-                        med.isActive ? 'text-emerald-500' : 'text-gray-300'
-                      }`}
-                    >
-                      <Check size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(med.id)}
-                      className="p-1.5 text-gray-300 active:text-red-400 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
+  const quickQs = ["What's a healthy fasting glucose?", 'How does exercise affect blood sugar?', 'Best foods to lower blood sugar?', 'What is HbA1c and why does it matter?', 'How to manage dawn phenomenon?', 'Vitamins important for diabetics?'];
 
   return (
-    <div className="min-h-screen bg-white pb-24">
-      <PageHeader
-        title="Medications"
-        subtitle={`${activeMeds.length} active · ${medications.length} total`}
-        icon={<Pill size={20} className="text-white" />}
-        rightAction={
-          <button
-            onClick={() => setShowAdd(true)}
-            className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm active:bg-white/30 transition-colors"
-          >
-            <Plus size={20} className="text-white" />
-          </button>
-        }
-      />
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="bg-gradient-to-br from-sky-600 via-sky-500 to-sky-400 pt-12 pb-6 px-5 rounded-b-3xl shadow-lg shadow-sky-200/50">
+        <div className="max-w-lg mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3"><div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><Bot size={20} className="text-white" /></div><div><h1 className="text-xl font-bold text-white tracking-tight">AI Doctor</h1><p className="text-sky-100 text-sm font-medium">Virtual health assistant</p></div></div>
+          <div className="flex gap-2">
+            <button onClick={() => setShowSettings(true)} className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><Settings size={18} className="text-white" /></button>
+            <button onClick={() => { clearChatHistory(); setMessages([]); }} className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><Trash2 size={18} className="text-white" /></button>
+          </div>
+        </div>
+      </div>
 
-      <div className="max-w-lg mx-auto px-5 mt-5">
-        {medications.length > 0 ? (
-          <>
-            {/* Day/Night Filter */}
-            <div className="flex gap-2 mb-5">
-              {[
-                { key: 'all', label: 'All', icon: null },
-                { key: 'day', label: '☀️ Daytime', icon: <Sun size={14} /> },
-                { key: 'night', label: '🌙 Night', icon: <Moon size={14} /> },
-              ].map((f) => (
-                <button
-                  key={f.key}
-                  onClick={() => setActiveFilter(f.key as any)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                    activeFilter === f.key
-                      ? 'bg-sky-500 text-white shadow-md shadow-sky-200'
-                      : 'bg-gray-100 text-gray-500'
-                  }`}
-                >
-                  {f.icon}
-                  {f.label}
-                </button>
-              ))}
+      <div className="max-w-lg mx-auto w-full px-5 mt-3">
+        <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100"><AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" /><p className="text-[11px] text-amber-700 leading-relaxed">AI Doctor provides general health information only. Always consult your healthcare provider for medical decisions. In emergencies, call 911.</p></div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto max-w-lg mx-auto w-full px-5 mt-4 pb-48">
+        {messages.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-sky-100 to-blue-100 flex items-center justify-center mb-4"><Bot size={36} className="text-sky-500" /></div>
+            <h3 className="font-bold text-gray-800 text-lg">Welcome, Mikail</h3>
+            <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">Ask me anything about diabetes, medications, nutrition, or health.</p>
+            <div className="mt-6 space-y-2"><p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Quick Questions</p>
+              <div className="grid grid-cols-1 gap-2 mt-2">{quickQs.map(q => <button key={q} onClick={() => setInput(q)} className="text-left p-3 bg-gray-50 rounded-xl text-sm text-gray-600 hover:bg-sky-50 active:bg-sky-100 border border-gray-100">{q}</button>)}</div>
             </div>
-
-            {/* Medication Sections */}
-            {activeFilter === 'all' ? (
-              <>
-                <MedSection title="Morning" emoji="🌅" meds={morningMeds} />
-                <MedSection title="Afternoon" emoji="☀️" meds={afternoonMeds} />
-                <MedSection title="Evening" emoji="🌆" meds={eveningMeds} />
-                <MedSection title="Night" emoji="🌙" meds={nightMeds} />
-                {medications.filter((m) => !m.isActive).length > 0 && (
-                  <MedSection title="Inactive" emoji="💤" meds={medications.filter((m) => !m.isActive)} />
-                )}
-              </>
-            ) : (
-              <MedSection
-                title={activeFilter === 'day' ? 'Daytime Meds' : 'Nighttime Meds'}
-                emoji={activeFilter === 'day' ? '☀️' : '🌙'}
-                meds={filteredMeds}
-              />
-            )}
-          </>
+          </div>
         ) : (
-          <div className="text-center py-12">
-            <div className="text-5xl mb-3">💊</div>
-            <p className="text-gray-400 font-medium">No medications added</p>
-            <p className="text-gray-300 text-sm mt-1">Add your medications and supplements</p>
-            <button
-              onClick={() => setShowAdd(true)}
-              className="mt-4 px-6 py-2.5 bg-sky-500 text-white rounded-xl font-semibold text-sm active:bg-sky-600 transition-colors"
-            >
-              Add Medication
-            </button>
+          <div className="space-y-3">{messages.map((m: any) => (
+            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] p-3.5 rounded-2xl ${m.role === 'user' ? 'bg-sky-500 text-white rounded-br-md' : 'bg-gray-100 text-gray-800 rounded-bl-md'}`}>
+                {m.role === 'assistant' && <div className="flex items-center gap-1.5 mb-1.5"><Bot size={12} className="text-sky-500" /><span className="text-[10px] font-semibold text-sky-500">Dr. AI</span></div>}
+                <div className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</div>
+                <p className={`text-[10px] mt-1.5 ${m.role === 'user' ? 'text-sky-200' : 'text-gray-400'}`}>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+            </div>
+          ))}
+            {loading && <div className="flex justify-start"><div className="bg-gray-100 p-4 rounded-2xl rounded-bl-md"><div className="flex gap-1.5"><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} /><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} /><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} /></div></div></div>}
+            {error && <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">{error}</div>}
+            <div ref={endRef} />
           </div>
         )}
       </div>
 
-      {/* Add Medication Modal */}
-      {showAdd && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end justify-center">
-          <div className="bg-white rounded-t-3xl w-full max-w-lg p-6 page-transition max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-gray-800">Add Medication</h2>
-              <button onClick={() => setShowAdd(false)} className="p-2 text-gray-400">
-                <X size={22} />
-              </button>
-            </div>
+      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-100 safe-bottom">
+        <div className="max-w-lg mx-auto px-4 py-3"><div className="flex gap-2">
+          <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Ask Dr. AI..." className="flex-1 p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" disabled={loading} />
+          <button onClick={send} disabled={!input.trim() || loading} className="w-12 h-12 bg-sky-500 text-white rounded-xl flex items-center justify-center active:bg-sky-600 disabled:opacity-40 shadow-lg shadow-sky-200 shrink-0"><Send size={18} /></button>
+        </div></div>
+      </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</label>
-                <input
-                  type="text"
-                  value={newMed.name}
-                  onChange={(e) => setNewMed({ ...newMed, name: e.target.value })}
-                  placeholder="e.g., Metformin, Vitamin D, Magnesium"
-                  className="w-full mt-1.5 p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-                  autoFocus
-                />
-                {/* AI Preview */}
-                {newMed.name && getAiRecommendation(newMed.name) && (
-                  <div className="mt-2 p-3 bg-sky-50 rounded-xl border border-sky-100">
-                    <p className="text-xs font-semibold text-sky-600 flex items-center gap-1 mb-1">
-                      <Sparkles size={12} /> AI Recommendation
-                    </p>
-                    <p className="text-xs text-sky-700">
-                      Best time: <strong>{getAiRecommendation(newMed.name)!.bestTime}</strong>
-                    </p>
-                    <p className="text-[11px] text-sky-600 mt-0.5">
-                      {getAiRecommendation(newMed.name)!.reason}
-                    </p>
-                    <p className="text-[11px] text-sky-600 mt-0.5">
-                      {getAiRecommendation(newMed.name)!.withFood ? '🍽️ Take with food' : '💧 Take on empty stomach'}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Dosage</label>
-                  <input
-                    type="text"
-                    value={newMed.dosage}
-                    onChange={(e) => setNewMed({ ...newMed, dosage: e.target.value })}
-                    placeholder="e.g., 500mg, 1 tablet"
-                    className="w-full mt-1.5 p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Frequency</label>
-                  <select
-                    value={newMed.frequency}
-                    onChange={(e) => setNewMed({ ...newMed, frequency: e.target.value })}
-                    className="w-full mt-1.5 p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-                  >
-                    {FREQUENCIES.map((f) => (
-                      <option key={f.key} value={f.key}>{f.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</label>
-                <div className="grid grid-cols-4 gap-2 mt-1.5">
-                  {CATEGORIES.map((cat) => (
-                    <button
-                      key={cat.key}
-                      onClick={() => setNewMed({ ...newMed, category: cat.key })}
-                      className={`py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                        newMed.category === cat.key
-                          ? 'bg-sky-500 text-white shadow-md shadow-sky-200'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      {cat.emoji} {cat.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Time of Day</label>
-                <div className="grid grid-cols-4 gap-2 mt-1.5">
-                  {TIMES_OF_DAY.map((time) => (
-                    <button
-                      key={time.key}
-                      onClick={() => toggleTimeOfDay(time.key)}
-                      className={`py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                        newMed.timeOfDay.includes(time.key)
-                          ? 'bg-sky-500 text-white shadow-md shadow-sky-200'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      {time.emoji} {time.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Notes (optional)</label>
-                <input
-                  type="text"
-                  value={newMed.notes}
-                  onChange={(e) => setNewMed({ ...newMed, notes: e.target.value })}
-                  placeholder="Additional notes..."
-                  className="w-full mt-1.5 p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-                />
-              </div>
-
-              <button
-                onClick={handleAdd}
-                disabled={!newMed.name}
-                className="w-full py-4 bg-sky-500 text-white rounded-xl font-bold text-base active:bg-sky-600 transition-colors disabled:opacity-40 shadow-lg shadow-sky-200"
-              >
-                Add Medication
-              </button>
-            </div>
+      {showSettings && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end justify-center">
+        <div className="bg-white rounded-t-3xl w-full max-w-lg p-6 page-in">
+          <div className="flex items-center justify-between mb-5"><h2 className="text-lg font-bold text-gray-800">AI Settings</h2><button onClick={() => setShowSettings(false)} className="p-2 text-gray-400"><X size={22} /></button></div>
+          <div className="space-y-4">
+            <div><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">OpenAI API Key</label><input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." className="w-full mt-1.5 p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 font-mono" /><p className="text-[11px] text-gray-400 mt-2">Stored locally only. Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" className="text-sky-500 underline">platform.openai.com</a></p></div>
+            <button onClick={() => { saveApiKey(apiKey); setShowSettings(false); }} className="w-full py-4 bg-sky-500 text-white rounded-xl font-bold text-base active:bg-sky-600 shadow-lg shadow-sky-200">Save Settings</button>
           </div>
         </div>
-      )}
-
+      </div>}
       <BottomNav />
     </div>
   );

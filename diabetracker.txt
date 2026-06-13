@@ -1,0 +1,25 @@
+diabetracker/
+├── package.json
+├── next.config.js
+├── tailwind.config.js
+├── postcss.config.js
+├── tsconfig.json
+├── .gitignore
+├── app/
+│   ├── layout.tsx
+│   ├── globals.css
+│   ├── page.tsx              ← HOME
+│   ├── tracker/page.tsx      ← GLUCOSE TRACKER + HbA1c
+│   ├── labs/page.tsx         ← LAB RESULTS (🟢🟡🔴)
+│   ├── medications/page.tsx  ← MEDS + AI vitamin timing
+│   ├── ai-doctor/page.tsx    ← AI DOCTOR chat
+│   ├── history/page.tsx      ← HISTORY + PDF export
+│   └── news/page.tsx         ← MEDICAL NEWS
+├── components/
+│   └── BottomNav.tsx
+├── lib/
+│   └── storage.ts
+└── public/
+    ├── manifest.json
+    ├── icon-192.png
+    └── icon-512.png
