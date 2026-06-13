@@ -1,0 +1,41 @@
+/home/user/Healty-Tracker-APP/
+├── .git/                           (Git repository)
+├── api/
+│   └── claude.js                   (Vercel serverless API proxy)
+├── src/
+│   ├── App.jsx                     (Main app component - active version)
+│   └── main.jsx                    (React entry point)
+├── health-command-center.jsx       (Alternative/backup component)
+├── index.html                      (HTML entry point)
+├── package.json                    (Project dependencies)
+├── vite.config.js                  (Vite build config)
+├── README.md                       (Deployment instructions)
+├── MK Health Tracker V3 Master Build.pdf
+└── MK Health Tracker V3 Master Build.docx
+
+{
+  "date": "YYYY-MM-DD",
+  "values": [
+    {
+      "name": "Test name",
+      "value": "result",
+      "unit": "unit",
+      "normalRange": "reference",
+      "status": "green|yellow|red"
+    }
+  ],
+  "summary": "2-3 sentence analysis",
+  "glucose": numeric_value_or_null,
+  "systolic": numeric_or_null,
+  "diastolic": numeric_or_null
+}
+
+{
+  readings: [],        // { id, type: "glucose"|"bp", date, value, ... }
+  labs: [],            // { id, date, fileName, fileType, values[], summary }
+  meds: [],            // { id, name, dose, time }
+  docs: [],            // { id, date, kind, name, detail }
+  chat: [],            // { role: "user"|"ai", text, ts }
+  news: null,          // { items[], fetchedAt: timestamp }
+  photo: null          // base64 jpeg data URL
+}
