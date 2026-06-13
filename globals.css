@@ -5,21 +5,12 @@
 * { -webkit-tap-highlight-color: transparent; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
-  background: #fff;
-  color: #1e293b;
-  -webkit-font-smoothing: antialiased;
-  overscroll-behavior: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  background: #fff; color: #1e293b; -webkit-font-smoothing: antialiased; overscroll-behavior: none;
 }
 ::-webkit-scrollbar { width: 0; height: 0; }
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-}
-.page-in { animation: fadeIn 0.2s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-.pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
-input, textarea, select { -webkit-appearance: none; appearance: none; border-radius: 12px; }
+.page-in { animation: fadeIn 0.2s ease-out; }
+input, select { -webkit-appearance: none; appearance: none; }
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.recharts-tooltip-wrapper { outline: none !important; }

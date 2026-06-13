@@ -1,115 +1,67 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
-import { Bot, Send, X, Trash2, Settings, AlertTriangle } from 'lucide-react';
-import BottomNav from '@/components/BottomNav';
-import { getChatHistory, saveChatMessage, clearChatHistory, getApiKey, saveApiKey } from '@/lib/storage';
+import { useEffect, useState, useCallback } from 'react';
+import { FlaskConical, Plus, Trash2, X } from 'lucide-react';
+import Nav from '@/components/Nav';
+import { getLabs, saveLab, delLab } from '@/lib/store';
 
-const SYS = `You are Dr. AI, a knowledgeable and caring virtual health assistant specializing in diabetes management, metabolic health, and general wellness. You are advising Mikail KOCAK, a patient with diabetes born July 23, 1979.
+const LABS = [
+  {name:'Glucose',unit:'mg/dL',min:70,max:100},{name:'HbA1c',unit:'%',min:4.0,max:5.6},{name:'Total Cholesterol',unit:'mg/dL',min:0,max:200},{name:'LDL',unit:'mg/dL',min:0,max:100},{name:'HDL',unit:'mg/dL',min:40,max:60},{name:'Triglycerides',unit:'mg/dL',min:0,max:150},{name:'Creatinine',unit:'mg/dL',min:0.6,max:1.2},{name:'BUN',unit:'mg/dL',min:7,max:20},{name:'eGFR',unit:'mL/min',min:60,max:120},{name:'ALT',unit:'U/L',min:7,max:56},{name:'AST',unit:'U/L',min:10,max:40},{name:'TSH',unit:'mIU/L',min:0.4,max:4.0},{name:'Vitamin D',unit:'ng/mL',min:30,max:100},{name:'B12',unit:'pg/mL',min:200,max:900},{name:'Sodium',unit:'mEq/L',min:136,max:145},{name:'Potassium',unit:'mEq/L',min:3.5,max:5.0},{name:'Hemoglobin',unit:'g/dL',min:13.5,max:17.5},{name:'WBC',unit:'x10³/µL',min:4.5,max:11.0},{name:'Platelets',unit:'x10³/µL',min:150,max:400},{name:'Uric Acid',unit:'mg/dL',min:3.5,max:7.2}
+];
 
-IMPORTANT:
-- Provide medically accurate information based on current guidelines
-- Always remind user you are AI, not a replacement for their actual doctor
-- For emergencies, direct them to call 911
-- Be empathetic, clear, professional
-- Use mg/dL for glucose
-- Reference ADA, AHA guidelines when appropriate
-- Keep responses concise but thorough
-- If outside your scope, recommend consulting a healthcare provider`;
+const status = (v:number,mn:number,mx:number)=>{const r=mx-mn;if(v<mn*0.7||v>mx*1.3)return'critical';if(v<mn-r*0.1)return'low';if(v>mx+r*0.1)return'high';if(v<mn||v>mx)return'borderline';return'normal';};
+const SC:any={normal:{bg:'bg-emerald-50',b:'border-emerald-200',l:'✅ Normal'},borderline:{bg:'bg-amber-50',b:'border-amber-200',l:'⚠️ Borderline'},high:{bg:'bg-red-50',b:'border-red-200',l:'🔴 High'},low:{bg:'bg-red-50',b:'border-red-200',l:'🔴 Low'},critical:{bg:'bg-red-100',b:'border-red-300',l:'🚨 Critical'}};
 
-export default function AIDoctor() {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [error, setError] = useState('');
-  const endRef = useRef<HTMLDivElement>(null);
+export default function Labs() {
+  const [results, setResults] = useState<any[]>([]);
+  const [open, setOpen] = useState(false);
+  const [sel, setSel] = useState<typeof LABS[0]|null>(null);
+  const [search, setSearch] = useState('');
+  const [fv, setFv] = useState('');
+  const [fd, setFd] = useState(new Date().toISOString().split('T')[0]);
 
-  useEffect(() => { setMessages(getChatHistory()); setApiKey(getApiKey()); }, []);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  const load = useCallback(()=>setResults(getLabs().sort((a:any,b:any)=>new Date(b.date).getTime()-new Date(a.date).getTime())),[]);
+  useEffect(()=>{load();},[load]);
 
-  const send = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg = { id: Date.now().toString(), role: 'user', content: input.trim(), timestamp: new Date().toISOString() };
-    const updated = [...messages, userMsg];
-    setMessages(updated); saveChatMessage(userMsg); setInput(''); setLoading(true); setError('');
-    try {
-      if (!apiKey) throw new Error('API key not set. Tap ⚙️ to add your OpenAI API key.');
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'system', content: SYS }, ...updated.map((m: any) => ({ role: m.role, content: m.content }))], temperature: 0.7, max_tokens: 1000 }),
-      });
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || `API Error: ${res.status}`); }
-      const data = await res.json();
-      const content = data.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
-      const aiMsg = { id: (Date.now() + 1).toString(), role: 'assistant', content, timestamp: new Date().toISOString() };
-      setMessages([...updated, aiMsg]); saveChatMessage(aiMsg);
-    } catch (e: any) { setError(e.message || 'Failed to get response'); }
-    finally { setLoading(false); }
-  };
-
-  const quickQs = ["What's a healthy fasting glucose?", 'How does exercise affect blood sugar?', 'Best foods to lower blood sugar?', 'What is HbA1c and why does it matter?', 'How to manage dawn phenomenon?', 'Vitamins important for diabetics?'];
+  const add = ()=>{if(!sel||!fv)return;const v=Number(fv);saveLab({id:Date.now().toString(),name:sel.name,value:v,unit:sel.unit,referenceMin:sel.min,referenceMax:sel.max,status:status(v,sel.min,sel.max),date:fd});setOpen(false);setSel(null);setFv('');load();};
+  const grouped = results.reduce((a:any,r:any)=>{(a[r.date]=a[r.date]||[]).push(r);return a;},{});
+  const nc=results.filter((r:any)=>r.status==='normal').length, bc=results.filter((r:any)=>r.status==='borderline').length, rc=results.filter((r:any)=>['high','low','critical'].includes(r.status)).length;
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <div className="bg-gradient-to-br from-sky-600 via-sky-500 to-sky-400 pt-12 pb-6 px-5 rounded-b-3xl shadow-lg shadow-sky-200/50">
+    <div className="min-h-screen bg-white pb-20">
+      <div className="bg-gradient-to-r from-sky-600 to-sky-400 pt-12 pb-5 px-5 rounded-b-3xl">
         <div className="max-w-lg mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3"><div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><Bot size={20} className="text-white" /></div><div><h1 className="text-xl font-bold text-white tracking-tight">AI Doctor</h1><p className="text-sky-100 text-sm font-medium">Virtual health assistant</p></div></div>
-          <div className="flex gap-2">
-            <button onClick={() => setShowSettings(true)} className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><Settings size={18} className="text-white" /></button>
-            <button onClick={() => { clearChatHistory(); setMessages([]); }} className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><Trash2 size={18} className="text-white" /></button>
-          </div>
+          <div className="flex items-center gap-3"><FlaskConical size={22} className="text-white"/><h1 className="text-xl font-bold text-white">Lab Results</h1></div>
+          <button onClick={()=>setOpen(true)} className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><Plus size={20} className="text-white"/></button>
         </div>
       </div>
-
-      <div className="max-w-lg mx-auto w-full px-5 mt-3">
-        <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100"><AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" /><p className="text-[11px] text-amber-700 leading-relaxed">AI Doctor provides general health information only. Always consult your healthcare provider for medical decisions. In emergencies, call 911.</p></div>
+      <div className="max-w-lg mx-auto px-5 mt-4">
+        {results.length>0&&<div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="bg-emerald-50 rounded-xl p-2.5 border border-emerald-100 text-center"><p className="text-xl font-bold text-emerald-600">{nc}</p><p className="text-[9px] font-bold text-emerald-500 uppercase">Normal</p></div>
+          <div className="bg-amber-50 rounded-xl p-2.5 border border-amber-100 text-center"><p className="text-xl font-bold text-amber-600">{bc}</p><p className="text-[9px] font-bold text-amber-500 uppercase">Borderline</p></div>
+          <div className="bg-red-50 rounded-xl p-2.5 border border-red-100 text-center"><p className="text-xl font-bold text-red-600">{rc}</p><p className="text-[9px] font-bold text-red-500 uppercase">Attention</p></div>
+        </div>}
+        {Object.keys(grouped).length>0?Object.entries(grouped).map(([date,labs]:[string,any])=>(
+          <div key={date} className="mb-4"><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">{new Date(date+'T12:00:00').toLocaleDateString([],{weekday:'short',month:'long',day:'numeric'})}</p>
+            <div className="space-y-2">{labs.map((r:any)=>{const s=SC[r.status]||SC.normal;return(
+              <div key={r.id} className={`p-3.5 rounded-xl border ${s.bg} ${s.b}`}>
+                <div className="flex items-start justify-between"><div><span className="font-bold text-sm text-gray-800">{r.name}</span><span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.bg} ${s.l.includes('✅')?'text-emerald-600':s.l.includes('⚠️')?'text-amber-600':'text-red-600'}`}>{s.l}</span><div className="mt-1"><span className="text-xl font-bold">{r.value}</span><span className="text-xs text-gray-400 ml-1">{r.unit}</span></div><p className="text-[10px] text-gray-400 mt-0.5">Ref: {r.referenceMin}–{r.referenceMax} {r.unit}</p></div>
+                <button onClick={()=>{delLab(r.id);load();}} className="p-1 text-gray-300"><Trash2 size={14}/></button></div>
+              </div>);})}</div></div>
+        )):<div className="text-center py-10"><p className="text-4xl mb-2">🔬</p><p className="text-gray-400 text-sm">No lab results</p><button onClick={()=>setOpen(true)} className="mt-3 px-5 py-2 bg-sky-500 text-white rounded-xl text-sm font-bold">Add Result</button></div>}
       </div>
-
-      <div className="flex-1 overflow-y-auto max-w-lg mx-auto w-full px-5 mt-4 pb-48">
-        {messages.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-sky-100 to-blue-100 flex items-center justify-center mb-4"><Bot size={36} className="text-sky-500" /></div>
-            <h3 className="font-bold text-gray-800 text-lg">Welcome, Mikail</h3>
-            <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">Ask me anything about diabetes, medications, nutrition, or health.</p>
-            <div className="mt-6 space-y-2"><p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Quick Questions</p>
-              <div className="grid grid-cols-1 gap-2 mt-2">{quickQs.map(q => <button key={q} onClick={() => setInput(q)} className="text-left p-3 bg-gray-50 rounded-xl text-sm text-gray-600 hover:bg-sky-50 active:bg-sky-100 border border-gray-100">{q}</button>)}</div>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">{messages.map((m: any) => (
-            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] p-3.5 rounded-2xl ${m.role === 'user' ? 'bg-sky-500 text-white rounded-br-md' : 'bg-gray-100 text-gray-800 rounded-bl-md'}`}>
-                {m.role === 'assistant' && <div className="flex items-center gap-1.5 mb-1.5"><Bot size={12} className="text-sky-500" /><span className="text-[10px] font-semibold text-sky-500">Dr. AI</span></div>}
-                <div className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</div>
-                <p className={`text-[10px] mt-1.5 ${m.role === 'user' ? 'text-sky-200' : 'text-gray-400'}`}>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-              </div>
-            </div>
-          ))}
-            {loading && <div className="flex justify-start"><div className="bg-gray-100 p-4 rounded-2xl rounded-bl-md"><div className="flex gap-1.5"><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} /><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} /><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} /></div></div></div>}
-            {error && <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">{error}</div>}
-            <div ref={endRef} />
-          </div>
-        )}
-      </div>
-
-      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-100 safe-bottom">
-        <div className="max-w-lg mx-auto px-4 py-3"><div className="flex gap-2">
-          <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Ask Dr. AI..." className="flex-1 p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" disabled={loading} />
-          <button onClick={send} disabled={!input.trim() || loading} className="w-12 h-12 bg-sky-500 text-white rounded-xl flex items-center justify-center active:bg-sky-600 disabled:opacity-40 shadow-lg shadow-sky-200 shrink-0"><Send size={18} /></button>
-        </div></div>
-      </div>
-
-      {showSettings && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end justify-center">
-        <div className="bg-white rounded-t-3xl w-full max-w-lg p-6 page-in">
-          <div className="flex items-center justify-between mb-5"><h2 className="text-lg font-bold text-gray-800">AI Settings</h2><button onClick={() => setShowSettings(false)} className="p-2 text-gray-400"><X size={22} /></button></div>
-          <div className="space-y-4">
-            <div><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">OpenAI API Key</label><input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." className="w-full mt-1.5 p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 font-mono" /><p className="text-[11px] text-gray-400 mt-2">Stored locally only. Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" className="text-sky-500 underline">platform.openai.com</a></p></div>
-            <button onClick={() => { saveApiKey(apiKey); setShowSettings(false); }} className="w-full py-4 bg-sky-500 text-white rounded-xl font-bold text-base active:bg-sky-600 shadow-lg shadow-sky-200">Save Settings</button>
-          </div>
-        </div>
-      </div>}
-      <BottomNav />
+      {open&&<div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center"><div className="bg-white rounded-t-3xl w-full max-w-lg p-6 page-in max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold">Add Lab Result</h2><button onClick={()=>{setOpen(false);setSel(null);}} className="p-2 text-gray-400"><X size={20}/></button></div>
+        {!sel&&<><input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search lab test..." className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 mb-3"/>
+        <div className="max-h-60 overflow-y-auto space-y-1">{LABS.filter(l=>l.name.toLowerCase().includes(search.toLowerCase())).map(l=>(
+          <button key={l.name} onClick={()=>{setSel(l);}} className="w-full text-left p-3 bg-gray-50 rounded-xl text-sm hover:bg-sky-50"><span className="font-medium">{l.name}</span><span className="text-xs text-gray-400 ml-2">({l.min}–{l.max} {l.unit})</span></button>
+        ))}</div></>}
+        {sel&&<><div className="flex items-center justify-between p-3 bg-sky-50 rounded-xl mb-4"><span className="font-bold text-sky-800 text-sm">{sel.name}</span><button onClick={()=>setSel(null)} className="text-xs text-sky-500 font-bold">Change</button></div>
+          <input type="number" value={fv} onChange={e=>setFv(e.target.value)} placeholder="Value" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl text-xl font-bold focus:outline-none focus:ring-2 focus:ring-sky-400 mb-3" autoFocus/>
+          <input type="date" value={fd} onChange={e=>setFd(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 mb-4"/>
+          <button onClick={add} disabled={!fv} className="w-full py-3.5 bg-sky-500 text-white rounded-xl font-bold disabled:opacity-40">Save</button>
+        </>}
+      </div></div>}
+      <Nav/>
     </div>
   );
 }

@@ -1,122 +1,89 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
-import { FlaskConical, Plus, Trash2, X, Upload, Camera, FileText } from 'lucide-react';
-import BottomNav from '@/components/BottomNav';
-import { getLabResults, saveLabResult, deleteLabResult } from '@/lib/storage';
+import { Pill, Plus, Trash2, X, Sparkles, Check } from 'lucide-react';
+import Nav from '@/components/Nav';
+import { getMeds, saveMed, updateMed, delMed } from '@/lib/store';
 
-const LABS = [
-  { name: 'Glucose', unit: 'mg/dL', min: 70, max: 100 }, { name: 'HbA1c', unit: '%', min: 4.0, max: 5.6 },
-  { name: 'Total Cholesterol', unit: 'mg/dL', min: 0, max: 200 }, { name: 'LDL', unit: 'mg/dL', min: 0, max: 100 },
-  { name: 'HDL', unit: 'mg/dL', min: 40, max: 60 }, { name: 'Triglycerides', unit: 'mg/dL', min: 0, max: 150 },
-  { name: 'Creatinine', unit: 'mg/dL', min: 0.6, max: 1.2 }, { name: 'BUN', unit: 'mg/dL', min: 7, max: 20 },
-  { name: 'eGFR', unit: 'mL/min', min: 60, max: 120 }, { name: 'ALT', unit: 'U/L', min: 7, max: 56 },
-  { name: 'AST', unit: 'U/L', min: 10, max: 40 }, { name: 'TSH', unit: 'mIU/L', min: 0.4, max: 4.0 },
-  { name: 'Vitamin D', unit: 'ng/mL', min: 30, max: 100 }, { name: 'B12', unit: 'pg/mL', min: 200, max: 900 },
-  { name: 'Sodium', unit: 'mEq/L', min: 136, max: 145 }, { name: 'Potassium', unit: 'mEq/L', min: 3.5, max: 5.0 },
-  { name: 'Hemoglobin', unit: 'g/dL', min: 13.5, max: 17.5 }, { name: 'WBC', unit: 'x10³/µL', min: 4.5, max: 11.0 },
-  { name: 'Platelets', unit: 'x10³/µL', min: 150, max: 400 }, { name: 'Uric Acid', unit: 'mg/dL', min: 3.5, max: 7.2 },
-];
-
-const getStatus = (v: number, min: number, max: number) => {
-  const r = max - min;
-  if (v < min * 0.7 || v > max * 1.3) return 'critical';
-  if (v < min - r * 0.1) return 'low';
-  if (v > max + r * 0.1) return 'high';
-  if (v < min || v > max) return 'borderline';
-  return 'normal';
+const VT:Record<string,{t:string;r:string;f:boolean}>={
+  'Vitamin D':{t:'Morning',r:'Best with sunlight & fatty meals. May disrupt sleep at night.',f:true},'Vitamin B12':{t:'Morning',r:'Boosts energy. Can interfere with sleep at night.',f:false},'Vitamin C':{t:'Morning/Afternoon',r:'Split doses improve absorption.',f:false},'Iron':{t:'Morning',r:'Best on empty stomach. Avoid with calcium.',f:false},'Calcium':{t:'Evening',r:'Promotes sleep. Separate from iron 2+ hours.',f:true},'Magnesium':{t:'Evening',r:'Promotes relaxation and sleep.',f:true},'Zinc':{t:'Morning',r:'Best on empty stomach.',f:false},'Omega-3':{t:'Morning',r:'Take with fatty meal. Can cause aftertaste at night.',f:true},'Probiotics':{t:'Morning',r:'30 min before breakfast on empty stomach.',f:false},'CoQ10':{t:'Morning',r:'Fat-soluble, energizing. May cause insomnia late.',f:true},'Fiber':{t:'Morning',r:'With water, before meals for blood sugar control.',f:true},'Metformin':{t:'With meals',r:'Take with meals to reduce GI effects. Evening helps dawn phenomenon.',f:true},'Berberine':{t:'Before meals',r:'30 min before meals for blood sugar control.',f:false},'Chromium':{t:'Morning',r:'With breakfast to regulate blood sugar all day.',f:true},'Alpha Lipoic Acid':{t:'Morning',r:'On empty stomach, 30 min before meals.',f:false},'Cinnamon Extract':{t:'Before meals',r:'Before meals for post-meal glucose.',f:true},'Turmeric':{t:'With meals',r:'Needs black pepper & fat for absorption.',f:true},'Melatonin':{t:'Night',r:'30-60 min before sleep.',f:false},'Ashwagandha':{t:'Evening',r:'Promotes relaxation and sleep.',f:true},'Biotin':{t:'Morning',r:'Water-soluble B vitamin. Morning for consistency.',f:false},'Folic Acid':{t:'Morning',r:'B vitamin for energy. On empty stomach.',f:false},'Vitamin A':{t:'Morning',r:'Fat-soluble, take with healthy fats.',f:true},'Vitamin E':{t:'Evening',r:'Fat-soluble, take with dinner.',f:true},'Vitamin K':{t:'Evening',r:'Fat-soluble, works with Vitamin D.',f:true},'Curcumin':{t:'With meals',r:'Needs black pepper & fat for absorption.',f:true},
 };
 
-const SC: any = { normal: { bg: 'bg-emerald-50', b: 'border-emerald-200', t: 'text-emerald-700', l: '✅ Normal' }, borderline: { bg: 'bg-amber-50', b: 'border-amber-200', t: 'text-amber-700', l: '⚠️ Borderline' }, high: { bg: 'bg-red-50', b: 'border-red-200', t: 'text-red-700', l: '🔴 High' }, low: { bg: 'bg-red-50', b: 'border-red-200', t: 'text-red-700', l: '🔴 Low' }, critical: { bg: 'bg-red-100', b: 'border-red-300', t: 'text-red-900', l: '🚨 Critical' } };
+const aiRec=(n:string)=>{const l=n.toLowerCase();for(const[k,v]of Object.entries(VT)){if(l.includes(k.toLowerCase())||k.toLowerCase().includes(l))return v;}return null;};
+const FREQS=[{k:'once_daily',l:'Once daily'},{k:'twice_daily',l:'Twice daily'},{k:'three_times',l:'3x daily'},{k:'as_needed',l:'As needed'},{k:'weekly',l:'Weekly'}];
 
-export default function Labs() {
-  const [results, setResults] = useState<any[]>([]);
-  const [showAdd, setShowAdd] = useState(false);
-  const [selected, setSelected] = useState<typeof LABS[0] | null>(null);
-  const [search, setSearch] = useState('');
-  const [form, setForm] = useState({ name: '', value: '', referenceMin: '', referenceMax: '', unit: '', date: new Date().toISOString().split('T')[0], notes: '', source: 'manual' });
+export default function Meds() {
+  const [meds, setMeds] = useState<any[]>([]);
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<'all'|'day'|'night'>('all');
+  const [form, setForm] = useState({name:'',dosage:'',frequency:'once_daily',timeOfDay:['morning'],category:'medication',notes:''});
 
-  const load = useCallback(() => { setResults(getLabResults().sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())); }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(()=>setMeds(getMeds()),[]);
+  useEffect(()=>{load();},[load]);
 
-  const handleAdd = () => {
-    if (!form.name || !form.value) return;
-    const v = Number(form.value), min = Number(form.referenceMin), max = Number(form.referenceMax);
-    saveLabResult({ id: Date.now().toString(), name: form.name, value: v, unit: form.unit, referenceMin: min, referenceMax: max, status: getStatus(v, min, max), date: form.date, source: form.source, notes: form.notes });
-    setShowAdd(false); setSelected(null); setForm({ name: '', value: '', referenceMin: '', referenceMax: '', unit: '', date: new Date().toISOString().split('T')[0], notes: '', source: 'manual' }); load();
-  };
+  const add = ()=>{if(!form.name)return;const ai=aiRec(form.name);saveMed({id:Date.now().toString(),name:form.name,dosage:form.dosage,frequency:form.frequency,timeOfDay:form.timeOfDay,category:form.category,aiTip:ai?`${ai.t} — ${ai.r}${ai.f?' (With food)':' (Empty stomach)'}`:undefined,isActive:true,notes:form.notes});setOpen(false);setForm({name:'',dosage:'',frequency:'once_daily',timeOfDay:['morning'],category:'medication',notes:''});load();};
+  const toggleTime=(t:string)=>setForm({...form,timeOfDay:form.timeOfDay.includes(t)?form.timeOfDay.filter(x=>x!==t):[...form.timeOfDay,t]});
 
-  const grouped = results.reduce((acc: any, r: any) => { (acc[r.date] = acc[r.date] || []).push(r); return acc; }, {});
-  const nc = results.filter((r: any) => r.status === 'normal').length;
-  const bc = results.filter((r: any) => r.status === 'borderline').length;
-  const rc = results.filter((r: any) => ['high', 'low', 'critical'].includes(r.status)).length;
+  const active = meds.filter((m:any)=>m.isActive);
+  const sections = [
+    {title:'🌅 Morning',items:active.filter((m:any)=>m.timeOfDay?.includes('morning'))},
+    {title:'☀️ Afternoon',items:active.filter((m:any)=>m.timeOfDay?.includes('afternoon'))},
+    {title:'🌆 Evening',items:active.filter((m:any)=>m.timeOfDay?.includes('evening'))},
+    {title:'🌙 Night',items:active.filter((m:any)=>m.timeOfDay?.includes('night'))},
+  ];
+  const inactive = meds.filter((m:any)=>!m.isActive);
+  const show = filter==='all'?sections:filter==='day'?sections.slice(0,2):sections.slice(2);
 
   return (
-    <div className="min-h-screen bg-white pb-24">
-      <div className="bg-gradient-to-br from-sky-600 via-sky-500 to-sky-400 pt-12 pb-6 px-5 rounded-b-3xl shadow-lg shadow-sky-200/50">
+    <div className="min-h-screen bg-white pb-20">
+      <div className="bg-gradient-to-r from-sky-600 to-sky-400 pt-12 pb-5 px-5 rounded-b-3xl">
         <div className="max-w-lg mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3"><div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><FlaskConical size={20} className="text-white" /></div><div><h1 className="text-xl font-bold text-white tracking-tight">Lab Results</h1><p className="text-sky-100 text-sm font-medium">Track your lab work</p></div></div>
-          <button onClick={() => setShowAdd(true)} className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><Plus size={20} className="text-white" /></button>
+          <div className="flex items-center gap-3"><Pill size={22} className="text-white"/><h1 className="text-xl font-bold text-white">Medications</h1></div>
+          <button onClick={()=>setOpen(true)} className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><Plus size={20} className="text-white"/></button>
         </div>
       </div>
-
-      <div className="max-w-lg mx-auto px-5 mt-5">
-        {results.length > 0 && <div className="grid grid-cols-3 gap-2 mb-5">
-          <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100 text-center"><p className="text-2xl font-bold text-emerald-600">{nc}</p><p className="text-[10px] font-semibold text-emerald-500 uppercase">Normal</p></div>
-          <div className="bg-amber-50 rounded-xl p-3 border border-amber-100 text-center"><p className="text-2xl font-bold text-amber-600">{bc}</p><p className="text-[10px] font-semibold text-amber-500 uppercase">Borderline</p></div>
-          <div className="bg-red-50 rounded-xl p-3 border border-red-100 text-center"><p className="text-2xl font-bold text-red-600">{rc}</p><p className="text-[10px] font-semibold text-red-500 uppercase">Attention</p></div>
-        </div>}
-
-        {Object.keys(grouped).length > 0 ? Object.entries(grouped).map(([date, labs]: [string, any]) => (
-          <div key={date} className="mb-5">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{new Date(date + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}</h3>
-            <div className="space-y-2">{labs.map((r: any) => { const s = SC[r.status] || SC.normal; return (
-              <div key={r.id} className={`p-4 rounded-xl border ${s.bg} ${s.b}`}>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2"><span className="font-semibold text-gray-800 text-sm">{r.name}</span><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.bg} ${s.t}`}>{s.l}</span></div>
-                    <div className="flex items-baseline gap-2 mt-1.5"><span className="text-xl font-bold text-gray-800">{r.value}</span><span className="text-xs text-gray-400">{r.unit}</span></div>
-                    <p className="text-[10px] text-gray-400 mt-1">Ref: {r.referenceMin}–{r.referenceMax} {r.unit}</p>
-                    {r.notes && <p className="text-xs text-gray-500 mt-1 italic">{r.notes}</p>}
+      <div className="max-w-lg mx-auto px-5 mt-4">
+        <div className="flex gap-2 mb-4">
+          {[{k:'all',l:'All'},{k:'day',l:'☀️ Day'},{k:'night',l:'🌙 Night'}].map(f=>(
+            <button key={f.k} onClick={()=>setFilter(f.k as any)} className={`flex-1 py-2 rounded-xl text-xs font-bold ${filter===f.k?'bg-sky-500 text-white':'bg-gray-100 text-gray-500'}`}>{f.l}</button>
+          ))}
+        </div>
+        {meds.length>0?show.map(s=>s.items.length>0&&(
+          <div key={s.title} className="mb-4"><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">{s.title}</p>
+            <div className="space-y-2">{s.items.map((m:any)=>(
+              <div key={m.id} className="p-3.5 bg-white rounded-xl border border-gray-100 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <span className="text-lg">{m.category==='insulin'?'💉':m.category==='vitamin'?'🧬':m.category==='supplement'?'🌿':'💊'}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-bold text-sm">{m.name}</span>{m.dosage&&<span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full ml-1">{m.dosage}</span>}
+                    {m.aiTip&&<span className="ml-1 text-[9px] font-bold text-sky-500 bg-sky-50 px-1 py-0.5 rounded-full"><Sparkles size={9} className="inline"/> AI</span>}
+                    <p className="text-[10px] text-gray-400 mt-0.5">{FREQS.find(f=>f.k===m.frequency)?.l} · {m.timeOfDay?.join(', ')}</p>
+                    {m.aiTip&&<div className="mt-2 p-2 bg-sky-50 rounded-lg border border-sky-100"><p className="text-[10px] text-sky-700"><span className="font-bold">✨ AI:</span> {m.aiTip}</p></div>}
                   </div>
-                  <button onClick={() => { deleteLabResult(r.id); load(); }} className="p-1.5 text-gray-300 active:text-red-400"><Trash2 size={14} /></button>
+                  <div className="flex flex-col gap-1">
+                    <button onClick={()=>{updateMed(m.id,{isActive:!m.isActive});load();}} className={`p-1 ${m.isActive?'text-emerald-500':'text-gray-300'}`}><Check size={16}/></button>
+                    <button onClick={()=>{delMed(m.id);load();}} className="p-1 text-gray-300"><Trash2 size={14}/></button>
+                  </div>
                 </div>
-                <div className="mt-3 h-1.5 bg-gray-200 rounded-full overflow-hidden"><div className={`h-full rounded-full ${r.status === 'normal' ? 'bg-emerald-400' : r.status === 'borderline' ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${Math.min(((r.value - r.referenceMin) / (r.referenceMax - r.referenceMin)) * 100, 100)}%` }} /></div>
               </div>
-            ); })}</div>
-          </div>
-        )) : (
-          <div className="text-center py-12"><div className="text-5xl mb-3">🔬</div><p className="text-gray-400 font-medium">No lab results yet</p><button onClick={() => setShowAdd(true)} className="mt-4 px-6 py-2.5 bg-sky-500 text-white rounded-xl font-semibold text-sm">Add Lab Result</button></div>
-        )}
+            ))}</div></div>
+        )):(filter==='all'&&<div className="text-center py-10"><p className="text-4xl mb-2">💊</p><p className="text-gray-400 text-sm">No medications</p><button onClick={()=>setOpen(true)} className="mt-3 px-5 py-2 bg-sky-500 text-white rounded-xl text-sm font-bold">Add</button></div>)}
+        {filter==='all'&&inactive.length>0&&<div className="mb-4"><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">💤 Inactive</p><div className="space-y-2">{inactive.map((m:any)=>(
+          <div key={m.id} className="p-3 bg-gray-50 rounded-xl border border-gray-100 opacity-60 flex items-center gap-3"><span className="text-lg">💊</span><div className="flex-1"><span className="font-bold text-sm text-gray-500">{m.name}</span></div><button onClick={()=>{updateMed(m.id,{isActive:true});load();}} className="p-1 text-gray-300"><Check size={16}/></button><button onClick={()=>{delMed(m.id);load();}} className="p-1 text-gray-300"><Trash2 size={14}/></button></div>
+        ))}</div></div>}
       </div>
-
-      {showAdd && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end justify-center">
-        <div className="bg-white rounded-t-3xl w-full max-w-lg p-6 page-in max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between mb-5"><h2 className="text-lg font-bold text-gray-800">Add Lab Result</h2><button onClick={() => { setShowAdd(false); setSelected(null); }} className="p-2 text-gray-400"><X size={22} /></button></div>
-          <div className="flex gap-2 mb-5">
-            {[{ k: 'manual', l: 'Manual', i: <FileText size={16} /> }, { k: 'photo', l: 'Photo', i: <Camera size={16} /> }, { k: 'pdf', l: 'PDF', i: <Upload size={16} /> }].map(s => (
-              <button key={s.k} onClick={() => setForm({ ...form, source: s.k })} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-semibold ${form.source === s.k ? 'bg-sky-500 text-white shadow-md shadow-sky-200' : 'bg-gray-100 text-gray-500'}`}>{s.i}{s.l}</button>
-            ))}
-          </div>
-          {!selected && <div className="mb-4">
-            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search lab test..." className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
-            <div className="mt-2 max-h-48 overflow-y-auto space-y-1">{LABS.filter(l => l.name.toLowerCase().includes(search.toLowerCase())).map(l => (
-              <button key={l.name} onClick={() => { setSelected(l); setForm({ ...form, name: l.name, unit: l.unit, referenceMin: l.min.toString(), referenceMax: l.max.toString() }); }} className="w-full text-left p-3 bg-gray-50 rounded-xl text-sm hover:bg-sky-50 active:bg-sky-100"><span className="font-medium text-gray-800">{l.name}</span><span className="text-xs text-gray-400 ml-2">({l.min}–{l.max} {l.unit})</span></button>
-            ))}</div>
-          </div>}
-          {selected && <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-sky-50 rounded-xl"><span className="font-semibold text-sky-800 text-sm">{selected.name}</span><button onClick={() => { setSelected(null); setForm({ ...form, name: '', unit: '', referenceMin: '', referenceMax: '' }); }} className="text-xs text-sky-500 font-semibold">Change</button></div>
-            <div><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Value</label><input type="number" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} placeholder="Enter value" className="w-full mt-1.5 p-4 bg-gray-50 border border-gray-200 rounded-xl text-lg font-bold focus:outline-none focus:ring-2 focus:ring-sky-400" autoFocus /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Ref Min</label><input type="number" value={form.referenceMin} onChange={e => setForm({ ...form, referenceMin: e.target.value })} className="w-full mt-1.5 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" /></div>
-              <div><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Ref Max</label><input type="number" value={form.referenceMax} onChange={e => setForm({ ...form, referenceMax: e.target.value })} className="w-full mt-1.5 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" /></div>
-            </div>
-            <div><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</label><input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="w-full mt-1.5 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" /></div>
-            <div><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Notes</label><input type="text" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Optional..." className="w-full mt-1.5 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" /></div>
-            <button onClick={handleAdd} disabled={!form.value || !form.name} className="w-full py-4 bg-sky-500 text-white rounded-xl font-bold text-base active:bg-sky-600 disabled:opacity-40 shadow-lg shadow-sky-200">Save Lab Result</button>
-          </div>}
+      {open&&<div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center"><div className="bg-white rounded-t-3xl w-full max-w-lg p-6 page-in max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold">Add Medication</h2><button onClick={()=>setOpen(false)} className="p-2 text-gray-400"><X size={20}/></button></div>
+        <div className="space-y-3">
+          <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g., Metformin, Vitamin D" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" autoFocus/>
+          {form.name&&aiRec(form.name)&&<div className="p-2.5 bg-sky-50 rounded-xl border border-sky-100"><p className="text-xs font-bold text-sky-600"><Sparkles size={10} className="inline"/> AI: Take in <strong>{aiRec(form.name)!.t}</strong></p><p className="text-[10px] text-sky-700 mt-0.5">{aiRec(form.name)!.r}</p><p className="text-[10px] text-sky-600 mt-0.5">{aiRec(form.name)!.f?'🍽️ Take with food':'💧 Empty stomach'}</p></div>}
+          <div className="grid grid-cols-2 gap-2"><input type="text" value={form.dosage} onChange={e=>setForm({...form,dosage:e.target.value})} placeholder="Dosage (500mg)" className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"/>
+            <select value={form.frequency} onChange={e=>setForm({...form,frequency:e.target.value})} className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400">{FREQS.map(f=><option key={f.k} value={f.k}>{f.l}</option>)}</select></div>
+          <div><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Category</p><div className="grid grid-cols-4 gap-1">{['💊 Med','🧬 Vit','🌿 Supp','💉 Ins'].map((c,i)=>{const k=['medication','vitamin','supplement','insulin'][i];return<button key={k} onClick={()=>setForm({...form,category:k})} className={`py-2 rounded-lg text-[10px] font-bold ${form.category===k?'bg-sky-500 text-white':'bg-gray-100 text-gray-500'}`}>{c}</button>;})}</div></div>
+          <div><p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Time</p><div className="grid grid-cols-4 gap-1">{[{k:'morning',l:'🌅 AM'},{k:'afternoon',l:'☀️ Mid'},{k:'evening',l:'🌆 PM'},{k:'night',l:'🌙 Bed'}].map(t=>(<button key={t.k} onClick={()=>toggleTime(t.k)} className={`py-2 rounded-lg text-[10px] font-bold ${form.timeOfDay.includes(t.k)?'bg-sky-500 text-white':'bg-gray-100 text-gray-500'}`}>{t.l}</button>))}</div></div>
+          <button onClick={add} disabled={!form.name} className="w-full py-3.5 bg-sky-500 text-white rounded-xl font-bold disabled:opacity-40">Add Medication</button>
         </div>
-      </div>}
-      <BottomNav />
+      </div></div>}
+      <Nav/>
     </div>
   );
 }

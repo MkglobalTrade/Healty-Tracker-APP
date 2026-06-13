@@ -1,118 +1,60 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { Activity, TrendingUp, Calendar, Heart, ChevronRight, Clock } from 'lucide-react';
-import BottomNav from '@/components/BottomNav';
-import { getUserProfile, getGlucoseReadings, calculateHbA1c, getMedications } from '@/lib/storage';
+import { useEffect, useState, useCallback } from 'react';
+import { Clock, FileDown } from 'lucide-react';
+import Nav from '@/components/Nav';
+import { getGlucose, getLabs, getMeds, calcHbA1c } from '@/lib/store';
 
-export default function Home() {
-  const [profile, setProfile] = useState({ name: 'Mikail KOCAK', birthDate: '1979-07-23', photoUrl: '' });
-  const [todayAvg, setTodayAvg] = useState<number | null>(null);
-  const [todayCount, setTodayCount] = useState(0);
-  const [hbA1c, setHbA1c] = useState<number | null>(null);
-  const [activeMeds, setActiveMeds] = useState(0);
-  const [greeting, setGreeting] = useState('Good Morning');
+type DT='all'|'glucose'|'labs'|'meds';type DR='7d'|'30d'|'90d'|'1y'|'all';
 
-  useEffect(() => {
-    setProfile(getUserProfile());
-    const h = new Date().getHours();
-    setGreeting(h < 12 ? 'Good Morning' : h < 17 ? 'Good Afternoon' : 'Good Evening');
-    const readings = getGlucoseReadings();
-    const today = new Date().toISOString().split('T')[0];
-    const tr = readings.filter((r: any) => r.timestamp.startsWith(today));
-    if (tr.length) { const v = tr.map((r: any) => r.value); const a = v.reduce((s: number, n: number) => s + n, 0) / v.length; setTodayAvg(Math.round(a)); setHbA1c(calculateHbA1c(a)); }
-    setTodayCount(tr.length);
-    setActiveMeds(getMedications().filter((m: any) => m.isActive).length);
-  }, []);
+export default function History() {
+  const [dt,setDt]=useState<DT>('all');const [dr,setDr]=useState<DR>('30d');
+  const [g,setG]=useState<any[]>([]);const [l,setL]=useState<any[]>([]);const [m,setM]=useState<any[]>([]);
+  const load=useCallback(()=>{setG(getGlucose());setL(getLabs());setM(getMeds());},[]);
+  useEffect(()=>{load();},[load]);
 
-  const age = () => { const b = new Date('1979-07-23'); const n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--; return a; };
-  const daysToBday = () => { const b = new Date('1979-07-23'); const n = new Date(); const next = new Date(n.getFullYear(), b.getMonth(), b.getDate()); if (next < n) next.setFullYear(next.getFullYear() + 1); return Math.ceil((next.getTime() - n.getTime()) / 86400000); };
+  const start=()=>{const n=new Date();switch(dr){case'7d':return new Date(n.getTime()-7*864e5);case'30d':return new Date(n.getTime()-30*864e5);case'90d':return new Date(n.getTime()-90*864e5);case'1y':return new Date(n.getFullYear()-1,n.getMonth(),n.getDate());case'all':return new Date(2000,0,1);}};
+  const fg=g.filter((r:any)=>new Date(r.timestamp)>=start()).sort((a:any,b:any)=>new Date(b.timestamp).getTime()-new Date(a.timestamp).getTime());
+  const fl=l.filter((r:any)=>new Date(r.date)>=start()).sort((a:any,b:any)=>new Date(b.date).getTime()-new Date(a.date).getTime());
+  const fm=m.filter((x:any)=>x.isActive);
 
-  const Stat = ({ l, v, u, c }: { l: string; v: any; u?: string; c: string }) => (
-    <div className={`rounded-2xl border p-3.5 ${c}`}>
-      <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">{l}</p>
-      <div className="flex items-baseline gap-1 mt-1"><span className="text-2xl font-bold">{v}</span>{u && <span className="text-xs font-medium opacity-70">{u}</span>}</div>
-    </div>
-  );
-
-  const cm = (v: number, g: number, y: number) => v <= g ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : v <= y ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-red-50 text-red-700 border-red-100';
+  const pdf=async()=>{
+    try{const{jsPDF}=await import('jspdf');const d=new jsPDF();const w=d.internal.pageSize.getWidth();let y=20;
+    d.setFillColor(2,132,199);d.rect(0,0,w,35,'F');d.setTextColor(255,255,255);d.setFontSize(18);d.setFont('helvetica','bold');d.text('GlucoTrack Pro - Health Report',15,18);
+    d.setFontSize(9);d.setFont('helvetica','normal');d.text(`${new Date().toLocaleDateString()} | Patient: Mikail KOCAK`,15,28);
+    y=45;d.setTextColor(30,41,59);
+    if(fg.length&&(dt==='all'||dt==='glucose')){d.setFontSize(13);d.setFont('helvetica','bold');d.text('Glucose Readings',15,y);y+=7;const v=fg.map((r:any)=>r.value);const a=v.reduce((s:number,n:number)=>s+n,0)/v.length;d.setFontSize(9);d.setFont('helvetica','normal');d.setTextColor(100,116,139);d.text(`Avg: ${Math.round(a)} mg/dL | HbA1c: ${calcHbA1c(a)}% | Count: ${fg.length}`,15,y);y+=7;d.setTextColor(30,41,59);fg.slice(0,40).forEach((r:any)=>{if(y>275){d.addPage();y=20;}d.setFontSize(8);d.text(`${new Date(r.timestamp).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}  ${r.value} mg/dL  ${r.mealContext}`,15,y);y+=5;});y+=7;}
+    if(fl.length&&(dt==='all'||dt==='labs')){if(y>240){d.addPage();y=20;}d.setFontSize(13);d.setFont('helvetica','bold');d.setTextColor(30,41,59);d.text('Lab Results',15,y);y+=7;fl.forEach((r:any)=>{if(y>275){d.addPage();y=20;}d.setFontSize(8);d.setFont('helvetica','normal');d.text(`${r.name}: ${r.value} ${r.unit} (Ref: ${r.referenceMin}-${r.referenceMax}) [${r.status}] ${r.date}`,15,y);y+=5;});y+=7;}
+    if(fm.length&&(dt==='all'||dt==='meds')){if(y>240){d.addPage();y=20;}d.setFontSize(13);d.setFont('helvetica','bold');d.setTextColor(30,41,59);d.text('Medications',15,y);y+=7;fm.forEach((x:any)=>{if(y>275){d.addPage();y=20;}d.setFontSize(8);d.setFont('helvetica','normal');d.text(`${x.name} ${x.dosage||''} - ${x.frequency} - ${x.timeOfDay?.join(',')}`,15,y);y+=5;});}
+    d.save(`GlucoTrack_${new Date().toISOString().split('T')[0]}.pdf`);}catch(e){alert('PDF export failed. Try again.');}
+  };
 
   return (
-    <div className="min-h-screen bg-white pb-24">
-      <div className="bg-gradient-to-br from-sky-600 via-sky-500 to-sky-400 pt-14 pb-8 px-5 rounded-b-[32px] shadow-lg shadow-sky-200/50">
-        <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <p className="text-sky-100 text-sm font-medium">{greeting} 👋</p>
-              <h1 className="text-3xl font-bold text-white mt-1 tracking-tight">{profile.name}</h1>
-            </div>
-            <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center overflow-hidden border-2 border-white/30">
-              {profile.photoUrl ? <img src={profile.photoUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-2xl font-bold text-white">MK</span>}
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1 bg-white/15 backdrop-blur-sm rounded-2xl p-3.5 border border-white/20">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center"><Calendar size={16} className="text-white" /></div>
-                <div><p className="text-sky-100 text-[10px] font-semibold uppercase tracking-wider">Age</p><p className="text-white text-lg font-bold">{age()}</p></div>
-              </div>
-              <p className="text-sky-200 text-[10px] mt-1.5">Born July 23, 1979</p>
-            </div>
-            <div className="flex-1 bg-white/15 backdrop-blur-sm rounded-2xl p-3.5 border border-white/20">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center"><Heart size={16} className="text-white" /></div>
-                <div><p className="text-sky-100 text-[10px] font-semibold uppercase tracking-wider">Birthday</p><p className="text-white text-lg font-bold">{daysToBday()}d</p></div>
-              </div>
-              <p className="text-sky-200 text-[10px] mt-1.5">Until next birthday</p>
-            </div>
-          </div>
+    <div className="min-h-screen bg-white pb-20">
+      <div className="bg-gradient-to-r from-sky-600 to-sky-400 pt-12 pb-5 px-5 rounded-b-3xl">
+        <div className="max-w-lg mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3"><Clock size={22} className="text-white"/><h1 className="text-xl font-bold text-white">History</h1></div>
+          <button onClick={pdf} className="flex items-center gap-1 px-3 py-1.5 bg-white/20 rounded-lg text-white text-xs font-bold"><FileDown size={14}/>PDF</button>
         </div>
       </div>
+      <div className="max-w-lg mx-auto px-5 mt-4">
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-3">{[{k:'all',l:'All'},{k:'glucose',l:'🩸'},{k:'labs',l:'🔬'},{k:'meds',l:'💊'}].map(f=><button key={f.k} onClick={()=>setDt(f.k as DT)} className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg ${dt===f.k?'bg-white text-sky-600 shadow-sm':'text-gray-400'}`}>{f.l}</button>)}</div>
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-4">{[{k:'7d',l:'7D'},{k:'30d',l:'30D'},{k:'90d',l:'90D'},{k:'1y',l:'1Y'},{k:'all',l:'All'}].map(r=><button key={r.k} onClick={()=>setDr(r.k as DR)} className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg ${dr===r.k?'bg-white text-sky-600 shadow-sm':'text-gray-400'}`}>{r.l}</button>)}</div>
 
-      <div className="max-w-lg mx-auto px-5 mt-6">
-        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Today&apos;s Overview</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <Stat l="Avg Glucose" v={todayAvg ?? '—'} u="mg/dL" c={todayAvg ? cm(todayAvg, 140, 180) : 'bg-sky-50 text-sky-700 border-sky-100'} />
-          <Stat l="Est. HbA1c" v={hbA1c ?? '—'} u="%" c={hbA1c ? cm(hbA1c, 6.5, 7.5) : 'bg-sky-50 text-sky-700 border-sky-100'} />
-          <Stat l="Readings" v={todayCount} c="bg-sky-50 text-sky-700 border-sky-100" />
-          <Stat l="Active Meds" v={activeMeds} c="bg-sky-50 text-sky-700 border-sky-100" />
-        </div>
-      </div>
+        {(dt==='all'||dt==='glucose')&&fg.length>0&&<div className="mb-5"><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">🩸 Glucose ({fg.length})</p><div className="space-y-1">{fg.slice(0,30).map((r:any)=>(
+          <div key={r.id} className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg"><div className={`w-2 h-2 rounded-full ${r.value<70?'bg-red-400':r.value<=140?'bg-emerald-400':r.value<=180?'bg-amber-400':'bg-red-400'}`}/><span className="font-bold text-sm flex-1">{r.value}<span className="text-xs text-gray-400 font-normal ml-1">mg/dL</span></span><span className="text-[10px] text-gray-400">{new Date(r.timestamp).toLocaleDateString([],{month:'short',day:'numeric'})}</span></div>
+        ))}</div></div>}
 
-      <div className="max-w-lg mx-auto px-5 mt-6">
-        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Quick Actions</h2>
-        <div className="space-y-2">
-          {[
-            { l: 'Log Glucose', d: 'Record blood sugar reading', e: '🩸', h: '/tracker' },
-            { l: 'Upload Lab Results', d: 'Add your latest lab work', e: '🔬', h: '/labs' },
-            { l: 'Check Medications', d: 'Review your daily medications', e: '💊', h: '/medications' },
-            { l: 'Ask AI Doctor', d: 'Get instant health guidance', e: '🤖', h: '/ai-doctor' },
-            { l: 'Medical News', d: 'Latest diabetes & longevity updates', e: '📰', h: '/news' },
-          ].map(a => (
-            <a key={a.l} href={a.h} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 group">
-              <div className="w-11 h-11 rounded-xl bg-white shadow-sm flex items-center justify-center text-xl">{a.e}</div>
-              <div className="flex-1 min-w-0"><p className="font-semibold text-gray-800 text-sm">{a.l}</p><p className="text-gray-400 text-xs mt-0.5">{a.d}</p></div>
-              <ChevronRight size={18} className="text-gray-300 group-hover:text-sky-400" />
-            </a>
-          ))}
-        </div>
-      </div>
+        {(dt==='all'||dt==='labs')&&fl.length>0&&<div className="mb-5"><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">🔬 Labs ({fl.length})</p><div className="space-y-1">{fl.map((r:any)=>(
+          <div key={r.id} className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg"><div className={`w-2 h-2 rounded-full ${r.status==='normal'?'bg-emerald-400':r.status==='borderline'?'bg-amber-400':'bg-red-400'}`}/><span className="font-bold text-sm flex-1">{r.name}<span className="text-xs text-gray-400 font-normal ml-1">{r.value} {r.unit}</span></span><span className={`text-[10px] font-bold ${r.status==='normal'?'text-emerald-600':r.status==='borderline'?'text-amber-600':'text-red-600'}`}>{r.status}</span></div>
+        ))}</div></div>}
 
-      <div className="max-w-lg mx-auto px-5 mt-6 mb-6">
-        <div className="bg-gradient-to-br from-sky-50 to-blue-50 rounded-2xl p-5 border border-sky-100">
-          <h3 className="font-bold text-sky-800 text-sm mb-3">📊 Glucose Targets</h3>
-          <div className="space-y-2">
-            {[
-              { l: 'Fasting', r: '80–130 mg/dL', c: 'bg-emerald-400' },
-              { l: 'Before Meal', r: '80–130 mg/dL', c: 'bg-sky-400' },
-              { l: 'After Meal (2hr)', r: '< 180 mg/dL', c: 'bg-amber-400' },
-              { l: 'Bedtime', r: '100–140 mg/dL', c: 'bg-indigo-400' },
-            ].map(t => (
-              <div key={t.l} className="flex items-center gap-3"><div className={`w-2.5 h-2.5 rounded-full ${t.c}`} /><span className="text-sm text-gray-600 flex-1">{t.l}</span><span className="text-sm font-semibold text-gray-800">{t.r}</span></div>
-            ))}
-          </div>
-        </div>
+        {(dt==='all'||dt==='meds')&&fm.length>0&&<div className="mb-5"><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">💊 Meds ({fm.length})</p><div className="space-y-1">{fm.map((x:any)=>(
+          <div key={x.id} className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg"><div className="w-2 h-2 rounded-full bg-sky-400"/><span className="font-bold text-sm flex-1">{x.name}<span className="text-xs text-gray-400 font-normal ml-1">{x.dosage}</span></span><span className="text-[10px] text-gray-400">{x.timeOfDay?.join(',')}</span></div>
+        ))}</div></div>}
+
+        {!fg.length&&!fl.length&&<div className="text-center py-10"><p className="text-4xl mb-2">📋</p><p className="text-gray-400 text-sm">No records</p></div>}
       </div>
-      <BottomNav />
+      <Nav/>
     </div>
   );
 }
