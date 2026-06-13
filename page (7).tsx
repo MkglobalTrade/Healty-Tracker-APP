@@ -1,60 +1,76 @@
 'use client';
-import { useState, useCallback } from 'react';
-import { Newspaper, RefreshCw, ExternalLink, Clock } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Bot, Send, X, Trash2, Settings, AlertTriangle } from 'lucide-react';
 import Nav from '@/components/Nav';
+import { getChat, saveChat, clearChat, getApiKey, saveApiKey } from '@/lib/store';
 
-const CAT:any={longevity:{l:'Longevity',c:'bg-violet-100 text-violet-700',e:'🧬'},diabetes:{l:'Diabetes',c:'bg-sky-100 text-sky-700',e:'🩸'},medicine:{l:'Medicine',c:'bg-emerald-100 text-emerald-700',e:'⚕️'},wellness:{l:'Wellness',c:'bg-amber-100 text-amber-700',e:'🌿'}};
+const SYS = 'You are Dr. AI, a virtual health assistant specializing in diabetes management. Patient: Mikail KOCAK, born July 23 1979, has diabetes. Provide medically accurate info. Always remind you are AI not a doctor. For emergencies say call 911. Use mg/dL. Keep responses concise. Reference ADA guidelines. If unsure, recommend consulting their doctor.';
 
-const DATA=[
-  {id:'1',title:'ADA Standards of Care: Key Updates for Diabetes Management',summary:'Updated recommendations for CGM, SGLT2 inhibitors, and personalized treatment targets.',source:'ADA',url:'https://diabetes.org/clinical-resources',category:'diabetes',at:new Date().toISOString(),rt:'8 min'},
-  {id:'2',title:'New GLP-1 Agonists Show Promise for Diabetes Reversal',summary:'Next-gen GLP-1 receptor agonists may help achieve diabetes remission in certain patients.',source:'Nature Medicine',url:'https://nature.com/nm',category:'diabetes',at:new Date(Date.now()-2*36e5).toISOString(),rt:'6 min'},
-  {id:'3',title:'5 Evidence-Based Strategies to Extend Healthspan',summary:'Top strategies: intermittent fasting, exercise timing, targeted supplementation.',source:'Cell Metabolism',url:'https://cell.com/cell-metabolism',category:'longevity',at:new Date(Date.now()-4*36e5).toISOString(),rt:'7 min'},
-  {id:'4',title:'AI Blood Glucose Prediction Achieves 95% Accuracy',summary:'ML models predict blood glucose 30 minutes ahead, transforming real-time management.',source:'Lancet Digital Health',url:'https://thelancet.com',category:'medicine',at:new Date(Date.now()-6*36e5).toISOString(),rt:'5 min'},
-  {id:'5',title:'Mediterranean Diet + Time-Restricted Eating Improves Insulin Sensitivity',summary:'10-hour eating window with Mediterranean diet reduces HbA1c significantly.',source:'Diabetes Care',url:'https://diabetesjournals.org/care',category:'wellness',at:new Date(Date.now()-8*36e5).toISOString(),rt:'4 min'},
-  {id:'6',title:'Senolytics: Removing Zombie Cells Could Add Decades to Lifespan',summary:'Senolytic drugs clear senescent cells, reducing age-related inflammation.',source:'Science Transl Med',url:'https://science.org',category:'longevity',at:new Date(Date.now()-12*36e5).toISOString(),rt:'6 min'},
-  {id:'7',title:'CGMs Now Recommended for All Type 2 Diabetes Patients',summary:'Major societies now recommend CGM for all T2D, not just insulin users.',source:'Endocrine Society',url:'https://endocrine.org',category:'diabetes',at:new Date(Date.now()-16*36e5).toISOString(),rt:'5 min'},
-  {id:'8',title:'New Biomarker Panel Predicts Diabetes Complications 5 Years Early',summary:'Biomarkers predict nephropathy, retinopathy, neuropathy before clinical onset.',source:'JAMA',url:'https://jamanetwork.com',category:'medicine',at:new Date(Date.now()-20*36e5).toISOString(),rt:'7 min'},
-  {id:'9',title:'Sleep Quality Directly Impacts Next-Day Blood Glucose',summary:'Poor sleep quality and irregular patterns significantly affect glucose control.',source:'Sleep Med Reviews',url:'https://sciencedirect.com',category:'wellness',at:new Date(Date.now()-24*36e5).toISOString(),rt:'5 min'},
-  {id:'10',title:'NAD+ Supplementation Shows Anti-Aging Benefits in Human Trial',summary:'Nicotinamide riboside improves biological aging markers and metabolic function.',source:'Nature Aging',url:'https://nature.com/nataging',category:'longevity',at:new Date(Date.now()-28*36e5).toISOString(),rt:'6 min'},
-];
+export default function AIDoctor() {
+  const [msgs, setMsgs] = useState<any[]>([]);
+  const [inp, setInp] = useState('');
+  const [load, setLoad] = useState(false);
+  const [set, setSet] = useState(false);
+  const [key, setKey] = useState('');
+  const [err, setErr] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
 
-export default function News() {
-  const [news,setNews]=useState(DATA);const [cat,setCat]=useState<'all'|'longevity'|'diabetes'|'medicine'|'wellness'>('all');const [ref,setRef]=useState(false);
-  const refresh=useCallback(async()=>{setRef(true);await new Promise(r=>setTimeout(r,1200));setNews([...DATA].sort(()=>Math.random()-0.5));setRef(false);},[]);
-  const filt=cat==='all'?news:news.filter(n=>n.category===cat);
-  const ago=(d:string)=>{const h=Math.floor((Date.now()-new Date(d).getTime())/36e5);if(h<1)return'Now';if(h<24)return`${h}h`;return`${Math.floor(h/24)}d`;};
+  useEffect(()=>{setMsgs(getChat());setKey(getApiKey());},[]);
+  useEffect(()=>{ref.current?.scrollIntoView({behavior:'smooth'});},[msgs]);
+
+  const send = async()=>{
+    if(!inp.trim()||load)return;
+    const u={id:Date.now().toString(),role:'user',content:inp.trim(),timestamp:new Date().toISOString()};
+    const up=[...msgs,u];setMsgs(up);saveChat(u);setInp('');setLoad(true);setErr('');
+    try{
+      if(!key)throw new Error('No API key. Tap ⚙️ to add your OpenAI key.');
+      const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'system',content:SYS},...up.map((m:any)=>({role:m.role,content:m.content}))],temperature:0.7,max_tokens:800})});
+      if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`Error ${r.status}`);}
+      const d=await r.json();const c=d.choices[0]?.message?.content||'Sorry, no response.';
+      const a={id:(Date.now()+1).toString(),role:'assistant',content:c,timestamp:new Date().toISOString()};
+      setMsgs([...up,a]);saveChat(a);
+    }catch(e:any){setErr(e.message||'Failed');}finally{setLoad(false);}
+  };
 
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className="min-h-screen bg-white flex flex-col">
       <div className="bg-gradient-to-r from-sky-600 to-sky-400 pt-12 pb-5 px-5 rounded-b-3xl">
         <div className="max-w-lg mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3"><Newspaper size={22} className="text-white"/><h1 className="text-xl font-bold text-white">Medical News</h1></div>
-          <button onClick={refresh} disabled={ref} className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center"><RefreshCw size={16} className={`text-white ${ref?'animate-spin':''}`}/></button>
+          <div className="flex items-center gap-3"><Bot size={22} className="text-white"/><h1 className="text-xl font-bold text-white">AI Doctor</h1></div>
+          <div className="flex gap-2"><button onClick={()=>setSet(true)} className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center"><Settings size={16} className="text-white"/></button><button onClick={()=>{clearChat();setMsgs([]);}} className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center"><Trash2 size={16} className="text-white"/></button></div>
         </div>
       </div>
-      <div className="max-w-lg mx-auto px-5 mt-4">
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-4 overflow-x-auto">{[{k:'all',l:'All'},{k:'diabetes',l:'🩸'},{k:'longevity',l:'🧬'},{k:'medicine',l:'⚕️'},{k:'wellness',l:'🌿'}].map(c=>(
-          <button key={c.k} onClick={()=>setCat(c.k as any)} className={`whitespace-nowrap px-3 py-1.5 text-[11px] font-bold rounded-lg ${cat===c.k?'bg-white text-sky-600 shadow-sm':'text-gray-400'}`}>{c.l}</button>
-        ))}</div>
-        {filt.length>0&&<a href={filt[0].url} target="_blank" rel="noopener noreferrer" className="block p-4 bg-gradient-to-br from-sky-50 to-blue-50 rounded-xl border border-sky-100 mb-4">
-          <div className="flex items-center gap-2 mb-2"><span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${CAT[filt[0].category].c}`}>{CAT[filt[0].category].e} {CAT[filt[0].category].l}</span>{filt[0].rt&&<span className="text-[9px] text-gray-400 flex items-center gap-0.5"><Clock size={8}/>{filt[0].rt}</span>}</div>
-          <h3 className="font-bold text-sm leading-snug mb-1">{filt[0].title}</h3><p className="text-xs text-gray-500">{filt[0].summary}</p>
-          <div className="flex justify-between mt-2"><span className="text-[10px] text-gray-400">{filt[0].source}</span><span className="text-[10px] text-sky-500 flex items-center gap-0.5">Read<ExternalLink size={8}/></span></div>
-        </a>}
-        <div className="space-y-2">{filt.slice(1).map(n=>{const cc=CAT[n.category];return(
-          <a key={n.id} href={n.url} target="_blank" rel="noopener noreferrer" className="block p-3 bg-gray-50 rounded-xl border border-gray-100">
-            <div className="flex items-start gap-2.5">
-              <span className="text-lg">{cc.e}</span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5"><span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${cc.c}`}>{cc.l}</span><span className="text-[8px] text-gray-400">{ago(n.at)}</span></div>
-                <h4 className="font-bold text-xs leading-snug">{n.title}</h4>
-                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-2">{n.summary}</p>
-                <span className="text-[9px] text-gray-300">{n.source}</span>
-              </div>
+      <div className="max-w-lg mx-auto w-full px-4 mt-3"><div className="flex items-start gap-2 p-2.5 bg-amber-50 rounded-lg border border-amber-100"><AlertTriangle size={12} className="text-amber-500 mt-0.5 shrink-0"/><p className="text-[10px] text-amber-700">AI provides general info only. Always consult your doctor. Emergency? Call 911.</p></div></div>
+      <div className="flex-1 overflow-y-auto max-w-lg mx-auto w-full px-4 mt-3 pb-44">
+        {msgs.length===0?(
+          <div className="text-center py-6"><div className="w-16 h-16 mx-auto rounded-2xl bg-sky-100 flex items-center justify-center mb-3"><Bot size={28} className="text-sky-500"/></div><h3 className="font-bold text-lg">Hi Mikail 👋</h3><p className="text-gray-400 text-sm mt-1">Ask about diabetes, medications, nutrition...</p>
+            <div className="mt-5 space-y-1.5">{["What's a healthy fasting glucose?",'Best foods for blood sugar?','How does exercise affect glucose?','What is HbA1c?','Vitamins for diabetics?','How to manage dawn phenomenon?'].map(q=><button key={q} onClick={()=>setInp(q)} className="w-full text-left p-2.5 bg-gray-50 rounded-lg text-sm text-gray-600 border border-gray-100">{q}</button>)}</div>
+          </div>
+        ):<div className="space-y-2.5">{msgs.map((m:any)=>(
+          <div key={m.id} className={`flex ${m.role==='user'?'justify-end':'justify-start'}`}>
+            <div className={`max-w-[85%] p-3 rounded-2xl ${m.role==='user'?'bg-sky-500 text-white rounded-br-sm':'bg-gray-100 text-gray-800 rounded-bl-sm'}`}>
+              {m.role==='assistant'&&<div className="flex items-center gap-1 mb-1"><Bot size={10} className="text-sky-500"/><span className="text-[9px] font-bold text-sky-500">Dr. AI</span></div>}
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
             </div>
-          </a>
-        );})}</div>
+          </div>))}
+          {load&&<div className="flex justify-start"><div className="bg-gray-100 p-3 rounded-2xl rounded-bl-sm"><div className="flex gap-1"><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"/><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay:'0.15s'}}/><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay:'0.3s'}}/></div></div></div>}
+          {err&&<div className="p-2.5 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600">{err}</div>}
+          <div ref={ref}/>
+        </div>}
       </div>
+      <div className="fixed bottom-14 left-0 right-0 bg-white border-t border-gray-100">
+        <div className="max-w-lg mx-auto px-4 py-2.5"><div className="flex gap-2">
+          <input type="text" value={inp} onChange={e=>setInp(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Ask Dr. AI..." className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" disabled={load}/>
+          <button onClick={send} disabled={!inp.trim()||load} className="w-11 h-11 bg-sky-500 text-white rounded-xl flex items-center justify-center disabled:opacity-40 shrink-0"><Send size={16}/></button>
+        </div></div>
+      </div>
+      {set&&<div className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center"><div className="bg-white rounded-t-3xl w-full max-w-lg p-6 page-in">
+        <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold">Settings</h2><button onClick={()=>setSet(false)} className="p-2 text-gray-400"><X size={20}/></button></div>
+        <label className="text-[10px] font-bold text-gray-400 uppercase">OpenAI API Key</label>
+        <input type="password" value={key} onChange={e=>setKey(e.target.value)} placeholder="sk-..." className="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-400"/>
+        <p className="text-[10px] text-gray-400 mt-1.5">Stored locally only. Get key at <a href="https://platform.openai.com/api-keys" target="_blank" className="text-sky-500 underline">platform.openai.com</a></p>
+        <button onClick={()=>{saveApiKey(key);setSet(false);}} className="w-full mt-4 py-3 bg-sky-500 text-white rounded-xl font-bold">Save</button>
+      </div></div>}
       <Nav/>
     </div>
   );
