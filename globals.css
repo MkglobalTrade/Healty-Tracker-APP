@@ -2,15 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-* { -webkit-tap-highlight-color: transparent; }
-html { -webkit-text-size-adjust: 100%; }
+* { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; font-size: 16px; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
-  background: #fff; color: #1e293b; -webkit-font-smoothing: antialiased; overscroll-behavior: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  background: #ffffff;
+  color: #1e293b;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  margin: 0;
+  padding: 0;
 }
 ::-webkit-scrollbar { width: 0; height: 0; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-.page-in { animation: fadeIn 0.2s ease-out; }
-input, select { -webkit-appearance: none; appearance: none; }
+input, select, textarea { -webkit-appearance: none; appearance: none; }
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.anim-in { animation: fadeIn 0.25s ease-out; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.pulse { animation: pulse 2s ease-in-out infinite; }

@@ -1,89 +1,165 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
-import { Clock, FileDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Calendar, Heart, ChevronRight } from 'lucide-react';
 import Nav from '@/components/Nav';
-import { getGlucose, getLabs, getMeds, calcHbA1c } from '@/lib/store';
+import { getProfile, getGlucose, estimateHbA1c, getMeds } from '@/lib/store';
 
-type DT='all'|'glucose'|'labs'|'meds';type DR='7d'|'30d'|'90d'|'1y'|'all';
+export default function HomePage() {
+  const [profile, setProfile] = useState({ name: 'Mikail KOCAK', birthDate: '1979-07-23', photoUrl: '' });
+  const [todayAvg, setTodayAvg] = useState<number | null>(null);
+  const [todayHbA1c, setTodayHbA1c] = useState<number | null>(null);
+  const [todayCount, setTodayCount] = useState(0);
+  const [activeMeds, setActiveMeds] = useState(0);
+  const [greeting, setGreeting] = useState('Good Morning');
 
-export default function History() {
-  const [dt,setDt]=useState<DT>('all');const [dr,setDr]=useState<DR>('30d');
-  const [g,setG]=useState<any[]>([]);const [l,setL]=useState<any[]>([]);const [m,setM]=useState<any[]>([]);
-  const load=useCallback(()=>{setG(getGlucose());setL(getLabs());setM(getMeds());},[]);
-  useEffect(()=>{load();},[load]);
+  useEffect(() => {
+    setProfile(getProfile());
+    const hour = new Date().getHours();
+    setGreeting(hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening');
 
-  const start=()=>{const n=new Date();switch(dr){case'7d':return new Date(n.getTime()-7*864e5);case'30d':return new Date(n.getTime()-30*864e5);case'90d':return new Date(n.getTime()-90*864e5);case'1y':return new Date(n.getFullYear()-1,n.getMonth(),n.getDate());case'all':return new Date(2000,0,1);}};
-  const fg=g.filter((r:any)=>new Date(r.timestamp)>=start()).sort((a:any,b:any)=>new Date(b.timestamp).getTime()-new Date(a.timestamp).getTime());
-  const fl=l.filter((r:any)=>new Date(r.date)>=start()).sort((a:any,b:any)=>new Date(b.date).getTime()-new Date(a.date).getTime());
-  const fm=m.filter((x:any)=>x.isActive);
-
-  const pdf=()=>{
-    const w=window.open('','_blank');
-    if(!w)return;
-    let h=`<!DOCTYPE html><html><head><title>GlucoTrack Pro Report</title><style>
-    body{font-family:-apple-system,sans-serif;max-width:800px;margin:0 auto;padding:40px 20px;color:#1e293b;font-size:13px}
-    h1{color:#0284c7;border-bottom:3px solid #0ea5e9;padding-bottom:10px}
-    h2{color:#0369a1;margin-top:30px;border-bottom:1px solid #e0f2fe;padding-bottom:6px}
-    table{width:100%;border-collapse:collapse;margin:10px 0}
-    th{background:#f0f9ff;text-align:left;padding:8px;font-size:11px;color:#0369a1}
-    td{padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:12px}
-    .green{color:#16a34a}.yellow{color:#ca8a04}.red{color:#dc2626}
-    .header{background:#0284c7;color:white;padding:20px;border-radius:12px;margin-bottom:20px}
-    .header p{margin:4px 0;opacity:0.9;font-size:13px}
-    .header h1{color:white;border:none;margin:0;padding:0}
-    @media print{body{padding:20px}}
-    </style></head><body>`;
-    h+=`<div class="header"><h1>GlucoTrack Pro — Health Report</h1><p>Patient: Mikail KOCAK</p><p>Generated: ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}</p></div>`;
-
-    if(fg.length&&(dt==='all'||dt==='glucose')){
-      const v=fg.map((r:any)=>r.value);const a=v.reduce((s:number,n:number)=>s+n,0)/v.length;
-      h+=`<h2>🩸 Glucose Readings</h2><p><strong>Avg:</strong> ${Math.round(a)} mg/dL | <strong>HbA1c:</strong> ${calcHbA1c(a)}% | <strong>Count:</strong> ${fg.length}</p>`;
-      h+=`<table><tr><th>Date</th><th>Value</th><th>Context</th></tr>`;
-      fg.slice(0,60).forEach((r:any)=>{h+=`<tr><td>${new Date(r.timestamp).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td><td>${r.value} mg/dL</td><td>${r.mealContext}</td></tr>`;});
-      h+=`</table>`;
+    const readings = getGlucose();
+    const today = new Date().toISOString().split('T')[0];
+    const todayReadings = readings.filter((r: any) => r.timestamp && r.timestamp.startsWith(today));
+    if (todayReadings.length > 0) {
+      const vals = todayReadings.map((r: any) => Number(r.value));
+      const avg = vals.reduce((a: number, b: number) => a + b, 0) / vals.length;
+      setTodayAvg(Math.round(avg));
+      setTodayHbA1c(estimateHbA1c(avg));
     }
-    if(fl.length&&(dt==='all'||dt==='labs')){
-      h+=`<h2>🔬 Lab Results</h2><table><tr><th>Test</th><th>Value</th><th>Reference</th><th>Status</th></tr>`;
-      fl.forEach((r:any)=>{const c=r.status==='normal'?'green':r.status==='borderline'?'yellow':'red';h+=`<tr><td>${r.name}</td><td>${r.value} ${r.unit}</td><td>${r.referenceMin}–${r.referenceMax}</td><td class="${c}">${r.status.toUpperCase()}</td></tr>`;});
-      h+=`</table>`;
-    }
-    if(fm.length&&(dt==='all'||dt==='meds')){
-      h+=`<h2>💊 Medications</h2><table><tr><th>Name</th><th>Dosage</th><th>Frequency</th><th>Time</th></tr>`;
-      fm.forEach((x:any)=>{h+=`<tr><td>${x.name}</td><td>${x.dosage||'-'}</td><td>${x.frequency}</td><td>${x.timeOfDay?.join(', ')||'-'}</td></tr>`;});
-      h+=`</table>`;
-    }
-    h+=`</body></html>`;
-    w.document.write(h);w.document.close();
-    setTimeout(()=>{w.print();},500);
+    setTodayCount(todayReadings.length);
+    setActiveMeds(getMeds().filter((m: any) => m.isActive).length);
+  }, []);
+
+  const calcAge = () => {
+    const birth = new Date('1979-07-23');
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+    const m = now.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+    return age;
   };
+
+  const daysToBirthday = () => {
+    const birth = new Date('1979-07-23');
+    const now = new Date();
+    const next = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
+    if (next < now) next.setFullYear(next.getFullYear() + 1);
+    return Math.ceil((next.getTime() - now.getTime()) / 86400000);
+  };
+
+  const colorFor = (val: number, green: number, yellow: number) =>
+    val <= green ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+    val <= yellow ? 'bg-amber-50 text-amber-700 border-amber-100' :
+    'bg-red-50 text-red-700 border-red-100';
 
   return (
     <div className="min-h-screen bg-white pb-20">
-      <div className="bg-gradient-to-r from-sky-600 to-sky-400 pt-12 pb-5 px-5 rounded-b-3xl">
-        <div className="max-w-lg mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3"><Clock size={22} className="text-white"/><h1 className="text-xl font-bold text-white">History</h1></div>
-          <button onClick={pdf} className="flex items-center gap-1 px-3 py-1.5 bg-white/20 rounded-lg text-white text-xs font-bold"><FileDown size={14}/>PDF</button>
+      {/* Header */}
+      <div className="bg-gradient-to-r from-sky-600 to-sky-400 pt-14 pb-8 px-5 rounded-b-3xl">
+        <div className="max-w-lg mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <p className="text-sky-100 text-sm font-medium">{greeting} 👋</p>
+              <h1 className="text-2xl font-bold text-white mt-0.5">{profile.name}</h1>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center border-2 border-white/30">
+              {profile.photoUrl ? (
+                <img src={profile.photoUrl} alt="" className="w-full h-full object-cover rounded-xl" />
+              ) : (
+                <span className="text-lg font-bold text-white">MK</span>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1 bg-white/15 rounded-xl p-3 border border-white/20">
+              <div className="flex items-center gap-2">
+                <Calendar size={14} className="text-white" />
+                <span className="text-sky-100 text-[10px] font-bold uppercase">Age</span>
+              </div>
+              <p className="text-white text-lg font-bold mt-1">{calcAge()}</p>
+              <p className="text-sky-200 text-[10px]">Born July 23, 1979</p>
+            </div>
+            <div className="flex-1 bg-white/15 rounded-xl p-3 border border-white/20">
+              <div className="flex items-center gap-2">
+                <Heart size={14} className="text-white" />
+                <span className="text-sky-100 text-[10px] font-bold uppercase">Birthday</span>
+              </div>
+              <p className="text-white text-lg font-bold mt-1">{daysToBirthday()}d</p>
+              <p className="text-sky-200 text-[10px]">Until next birthday</p>
+            </div>
+          </div>
         </div>
       </div>
-      <div className="max-w-lg mx-auto px-5 mt-4">
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-3">{[{k:'all',l:'All'},{k:'glucose',l:'🩸'},{k:'labs',l:'🔬'},{k:'meds',l:'💊'}].map(f=><button key={f.k} onClick={()=>setDt(f.k as DT)} className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg ${dt===f.k?'bg-white text-sky-600 shadow-sm':'text-gray-400'}`}>{f.l}</button>)}</div>
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-4">{[{k:'7d',l:'7D'},{k:'30d',l:'30D'},{k:'90d',l:'90D'},{k:'1y',l:'1Y'},{k:'all',l:'All'}].map(r=><button key={r.k} onClick={()=>setDr(r.k as DR)} className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg ${dr===r.k?'bg-white text-sky-600 shadow-sm':'text-gray-400'}`}>{r.l}</button>)}</div>
 
-        {(dt==='all'||dt==='glucose')&&fg.length>0&&<div className="mb-5"><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">🩸 Glucose ({fg.length})</p><div className="space-y-1">{fg.slice(0,30).map((r:any)=>(
-          <div key={r.id} className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg"><div className={`w-2 h-2 rounded-full ${r.value<70?'bg-red-400':r.value<=140?'bg-emerald-400':r.value<=180?'bg-amber-400':'bg-red-400'}`}/><span className="font-bold text-sm flex-1">{r.value}<span className="text-xs text-gray-400 font-normal ml-1">mg/dL</span></span><span className="text-[10px] text-gray-400">{new Date(r.timestamp).toLocaleDateString([],{month:'short',day:'numeric'})}</span></div>
-        ))}</div></div>}
+      <div className="max-w-lg mx-auto px-5 mt-5">
+        {/* Stats */}
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Today&apos;s Overview</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className={`rounded-2xl border p-3 ${todayAvg ? colorFor(todayAvg, 140, 180) : 'bg-sky-50 text-sky-700 border-sky-100'}`}>
+            <p className="text-[10px] font-bold uppercase opacity-60">Avg Glucose</p>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-xl font-bold">{todayAvg ?? '—'}</span>
+              <span className="text-xs opacity-60">mg/dL</span>
+            </div>
+          </div>
+          <div className={`rounded-2xl border p-3 ${todayHbA1c ? colorFor(todayHbA1c, 6.5, 7.5) : 'bg-sky-50 text-sky-700 border-sky-100'}`}>
+            <p className="text-[10px] font-bold uppercase opacity-60">Est. HbA1c</p>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-xl font-bold">{todayHbA1c ?? '—'}</span>
+              <span className="text-xs opacity-60">%</span>
+            </div>
+          </div>
+          <div className="rounded-2xl border p-3 bg-sky-50 text-sky-700 border-sky-100">
+            <p className="text-[10px] font-bold uppercase opacity-60">Readings</p>
+            <p className="text-xl font-bold mt-1">{todayCount}</p>
+          </div>
+          <div className="rounded-2xl border p-3 bg-sky-50 text-sky-700 border-sky-100">
+            <p className="text-[10px] font-bold uppercase opacity-60">Active Meds</p>
+            <p className="text-xl font-bold mt-1">{activeMeds}</p>
+          </div>
+        </div>
 
-        {(dt==='all'||dt==='labs')&&fl.length>0&&<div className="mb-5"><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">🔬 Labs ({fl.length})</p><div className="space-y-1">{fl.map((r:any)=>(
-          <div key={r.id} className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg"><div className={`w-2 h-2 rounded-full ${r.status==='normal'?'bg-emerald-400':r.status==='borderline'?'bg-amber-400':'bg-red-400'}`}/><span className="font-bold text-sm flex-1">{r.name}<span className="text-xs text-gray-400 font-normal ml-1">{r.value} {r.unit}</span></span><span className={`text-[10px] font-bold ${r.status==='normal'?'text-emerald-600':r.status==='borderline'?'text-amber-600':'text-red-600'}`}>{r.status}</span></div>
-        ))}</div></div>}
+        {/* Quick Actions */}
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-6 mb-3">Quick Actions</p>
+        <div className="space-y-2">
+          {[
+            { label: 'Log Glucose', emoji: '🩸', href: '/tracker' },
+            { label: 'Upload Lab Results', emoji: '🔬', href: '/labs' },
+            { label: 'My Medications', emoji: '💊', href: '/meds' },
+            { label: 'Ask AI Doctor', emoji: '🤖', href: '/ai-doctor' },
+            { label: 'Medical News', emoji: '📰', href: '/news' },
+          ].map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              className="flex items-center gap-3 p-3.5 bg-gray-50 rounded-xl border border-gray-100 active:bg-sky-50 transition-colors"
+            >
+              <span className="text-xl">{item.emoji}</span>
+              <span className="flex-1 font-semibold text-gray-800 text-sm">{item.label}</span>
+              <ChevronRight size={16} className="text-gray-300" />
+            </a>
+          ))}
+        </div>
 
-        {(dt==='all'||dt==='meds')&&fm.length>0&&<div className="mb-5"><p className="text-[10px] font-bold text-gray-400 uppercase mb-2">💊 Meds ({fm.length})</p><div className="space-y-1">{fm.map((x:any)=>(
-          <div key={x.id} className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg"><div className="w-2 h-2 rounded-full bg-sky-400"/><span className="font-bold text-sm flex-1">{x.name}<span className="text-xs text-gray-400 font-normal ml-1">{x.dosage}</span></span><span className="text-[10px] text-gray-400">{x.timeOfDay?.join(',')}</span></div>
-        ))}</div></div>}
-
-        {!fg.length&&!fl.length&&<div className="text-center py-10"><p className="text-4xl mb-2">📋</p><p className="text-gray-400 text-sm">No records</p></div>}
+        {/* Glucose Targets */}
+        <div className="mt-6 p-4 bg-sky-50 rounded-2xl border border-sky-100">
+          <p className="font-bold text-sky-800 text-sm mb-2">📊 ADA Glucose Targets</p>
+          {[
+            { label: 'Fasting', range: '80–130 mg/dL', color: 'bg-emerald-400' },
+            { label: 'Before Meal', range: '80–130 mg/dL', color: 'bg-sky-400' },
+            { label: 'After Meal (2hr)', range: '< 180 mg/dL', color: 'bg-amber-400' },
+            { label: 'Bedtime', range: '100–140 mg/dL', color: 'bg-indigo-400' },
+          ].map((t) => (
+            <div key={t.label} className="flex items-center gap-2 py-1">
+              <div className={`w-2 h-2 rounded-full ${t.color}`} />
+              <span className="text-xs text-gray-600 flex-1">{t.label}</span>
+              <span className="text-xs font-bold text-gray-800">{t.range}</span>
+            </div>
+          ))}
+        </div>
       </div>
-      <Nav/>
+
+      <Nav />
     </div>
   );
 }
