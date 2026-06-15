@@ -87,7 +87,7 @@ async function saveAll(data) {
 /*  Anthropic API helpers                                              */
 /* ------------------------------------------------------------------ */
 async function callClaude(messages, tools) {
-  const body = { model: ""claude-3-5-sonnet-20241022", max_tokens: 1000, messages };
+  const body = { model: "claude-3-5-sonnet-20241022", max_tokens: 1000, messages };
   if (tools) body.tools = tools;
   const res = await fetch("/api/claude", {
     method: "POST",
