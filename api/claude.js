@@ -1,8 +1,5 @@
 // Vercel serverless function — keeps your Anthropic API key secret on the server.
 // Set ANTHROPIC_API_KEY in Vercel: Project -> Settings -> Environment Variables.
-export default async function handler(req, res) {
-  // Vercel serverless function — keeps your Anthropic API key secret on the server.
-// Set ANTHROPIC_API_KEY in Vercel: Project -> Settings -> Environment Variables.
 
 export default async function handler(req, res) {
   // Manejar peticiones de diagnóstico/CORS preflight
@@ -19,10 +16,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Forzar el modelo correcto y limpiar la estructura del cuerpo si es necesario
     const requestBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     
-    // Asegurar que use un modelo multimodal moderno capaz de leer imágenes/PDFs
     if (!requestBody.model) {
       requestBody.model = "claude-3-5-sonnet-20241022";
     }
@@ -37,13 +32,6 @@ export default async function handler(req, res) {
       body: JSON.stringify(requestBody),
     });
 
-    const data = await r.json();
-    return res.status(r.status).json(data);
-  } catch (e) {
-    return res.status(500).json({ error: String(e) });
-  }
-}
-    });
     const data = await r.json();
     return res.status(r.status).json(data);
   } catch (e) {
