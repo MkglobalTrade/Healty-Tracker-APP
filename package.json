@@ -113,15 +113,3 @@
     }
   }
 }
-"devDependencies": {
-    "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.38",
-    "tailwindcss": "^3.4.3"
-  }, // <-- Asegúrate de que haya una coma aquí para separar la sección anterior
-  "pnpm": {
-    "allowedBuilds": [
-      "@tailwindcss/oxide",
-      "esbuild"
-    ]
-  }
-}
