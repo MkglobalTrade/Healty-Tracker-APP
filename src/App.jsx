@@ -87,7 +87,7 @@ async function saveAll(data) {
 /* Anthropic API helpers                                              */
 /* ------------------------------------------------------------------ */
 async function callClaude(messages, tools) {
-  const body = { model: "claude-3-5-sonnet-20241022", max_tokens: 1000, messages };
+  const body = { model: "gpt-4o", max_tokens: 1500, messages };
   if (tools) body.tools = tools;
   const res = await fetch("/api/claude", {
     method: "POST",
@@ -105,6 +105,9 @@ function parseJSON(text) {
   if (start === -1 || end === -1) throw new Error("No JSON found");
   return JSON.parse(clean.slice(start, end + 1));
 }
+/* ------------------------------------------------------------------ */
+/* File handling                                                      */
+/* ------------------------------------------------------------------ */
 function fileToBase64(file) {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -143,6 +146,9 @@ function StatusDot({ status, size = 10 }) {
     }} />
   );
 }
+/* ------------------------------------------------------------------ */
+/* Panel Component                                                   */
+/* ------------------------------------------------------------------ */
 function Panel({ children, style }) {
   return (
     <div style={{
@@ -243,7 +249,6 @@ export default function HealthCommandCenter() {
             </div>
           </div>
 
-          {/* Profile photo */}
           <input ref={photoRef} type="file" accept="image/*" onChange={pickPhoto} style={{ display: "none" }} />
           <button onClick={() => photoRef.current?.click()} aria-label="Change profile photo" style={{
             width: 72, height: 72, borderRadius: "50%", padding: 0, cursor: "pointer",
@@ -290,4 +295,56 @@ export default function HealthCommandCenter() {
 
         <div style={{ fontSize: 11, color: T.dim, textAlign: "center", padding: "8px 0 20px", lineHeight: 1.5 }}>
           This app is for personal tracking and general information only — it is not medical advice,
-          diagnosis, or treatment. Always
+          diagnosis, or treatment. Always confirm decisions with your physician.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/* DASHBOARD                                                          */
+/* ================================================================== */
+function Dashboard({ data }) {
+  const glucose = data.readings.filter(r => r.type === "glucose").sort((a, b) => a.date.localeCompare(b.date));
+  const bp = data.readings.filter(r => r.type === "bp").sort((a, b) => a.date.localeCompare(b.date));
+  const lastG = glucose[glucose.length - 1];
+  const lastBP = bp[bp.length - 1];
+
+  const gStatus = lastG ? glucoseStatus(lastG.value) : null;
+  const bStatus = lastBP ? bpStatus(lastBP.sys, lastBP.dia) : null;
+  const labStatuses = data.labs.flatMap(l => (l.values || []).map(v => v.status)).filter(Boolean);
+  const all = [gStatus, bStatus, ...labStatuses].filter(Boolean);
+  const overall = worst(all.length ? all : ["yellow"]);
+  const hasAny = lastG || lastBP || data.labs.length > 0;
+
+  return (
+    <>
+      <Panel style={{
+        borderLeft: `4px solid ${hasAny ? STATUS[overall].color : T.line}`,
+        display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap"
+      }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: "50%", flexShrink: 0,
+          border: `3px solid ${hasAny ? STATUS[overall].color : T.line}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: hasAny ? `0 0 22px ${STATUS[overall].color}33` : "none"
+        }}>
+          {hasAny
+            ? (overall === "green" ? <CheckCircle2 color={T.green} size={28} /> : <AlertTriangle color={STATUS[overall].color} size={28} />)
+            : <Activity color={T.dim} size={28} />}
+        </div>
+        <div>
+          <Eyebrow>Overall status</Eyebrow>
+          <div style={{ fontSize: 22, fontWeight: 700, color: hasAny ? STATUS[overall].color : T.dim, fontFamily: "Georgia, serif" }}>
+            {hasAny ? STATUS[overall].label : "No data yet"}
+          </div>
+          <div style={{ fontSize: 13, color: T.dim, marginTop: 2 }}>
+            {hasAny
+              ? "Based on your latest glucose, blood pressure, and lab results."
+              : "Upload a lab report or add a reading to activate monitoring."}
+          </div>
+        </div>
+      </Panel>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax
