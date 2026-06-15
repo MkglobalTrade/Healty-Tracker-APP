@@ -10,7 +10,7 @@ import {
 } from "recharts";
 
 /* ------------------------------------------------------------------ */
-/*  Design tokens — white background, dark text, status colors kept    */
+/* Design tokens — white background, dark text, status colors kept    */
 /* ------------------------------------------------------------------ */
 const T = {
   bg: "#F7F8FA",        // app background (soft white)
@@ -42,7 +42,7 @@ function ageNow() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Clinical categorization (ADA / AHA standard ranges)                */
+/* Clinical categorization (ADA / AHA standard ranges)                */
 /* ------------------------------------------------------------------ */
 function glucoseStatus(v) {
   const n = Number(v);
@@ -66,7 +66,7 @@ function worst(list) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Storage                                                            */
+/* Storage                                                            */
 /* ------------------------------------------------------------------ */
 const KEY = "mk-health-center-v1";
 const EMPTY = { readings: [], labs: [], meds: [], docs: [], chat: [], news: null, photo: null };
@@ -84,7 +84,7 @@ async function saveAll(data) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Anthropic API helpers                                              */
+/* Anthropic API helpers                                              */
 /* ------------------------------------------------------------------ */
 async function callClaude(messages, tools) {
   const body = { model: "claude-3-5-sonnet-20241022", max_tokens: 1000, messages };
@@ -132,7 +132,7 @@ function resizePhoto(file, size = 200) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Small UI pieces                                                    */
+/* Small UI pieces                                                    */
 /* ------------------------------------------------------------------ */
 function StatusDot({ status, size = 10 }) {
   return (
@@ -177,7 +177,7 @@ const inputStyle = {
 };
 
 /* ================================================================== */
-/*  MAIN APP                                                           */
+/* MAIN APP                                                           */
 /* ================================================================== */
 export default function HealthCommandCenter() {
   const [data, setData] = useState(null);
@@ -243,7 +243,7 @@ export default function HealthCommandCenter() {
             </div>
           </div>
 
-          {/* Profile photo — top-right corner, click to change */}
+          {/* Profile photo */}
           <input ref={photoRef} type="file" accept="image/*" onChange={pickPhoto} style={{ display: "none" }} />
           <button onClick={() => photoRef.current?.click()} aria-label="Change profile photo" style={{
             width: 72, height: 72, borderRadius: "50%", padding: 0, cursor: "pointer",
@@ -298,7 +298,7 @@ export default function HealthCommandCenter() {
 }
 
 /* ================================================================== */
-/*  DASHBOARD                                                          */
+/* DASHBOARD                                                          */
 /* ================================================================== */
 function Dashboard({ data }) {
   const glucose = data.readings.filter(r => r.type === "glucose").sort((a, b) => a.date.localeCompare(b.date));
@@ -437,7 +437,7 @@ function LabTable({ lab }) {
 }
 
 /* ================================================================== */
-/*  UPLOAD TAB                                                         */
+/* UPLOAD TAB                                                         */
 /* ================================================================== */
 function UploadTab({ data, update }) {
   const [busy, setBusy] = useState(false);
@@ -572,7 +572,7 @@ Respond ONLY with raw JSON, no markdown, no preamble, in this exact shape:
 }
 
 /* ================================================================== */
-/*  MEDICATIONS                                                        */
+/* MEDICATIONS                                                        */
 /* ================================================================== */
 function MedsTab({ data, update }) {
   const [name, setName] = useState("");
@@ -625,241 +625,4 @@ function MedsTab({ data, update }) {
       <Panel>
         <Eyebrow>Add medication</Eyebrow>
         <div style={{ display: "grid", gap: 10, gridTemplateColumns: "2fr 1.5fr 1fr auto", alignItems: "center" }}>
-          <input style={inputStyle} placeholder="Medication name" value={name} onChange={e => setName(e.target.value)} />
-          <input style={inputStyle} placeholder="Dose (e.g. 500 mg)" value={dose} onChange={e => setDose(e.target.value)} />
-          <select style={inputStyle} value={time} onChange={e => setTime(e.target.value)}>
-            <option value="morning">Morning</option>
-            <option value="night">Night</option>
-            <option value="both">Twice a day</option>
-          </select>
-          <Btn onClick={add}><Plus size={15} /> Add</Btn>
-        </div>
-      </Panel>
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <MedList items={morning} icon={Sun} title="Day — morning" tint={T.gold} />
-        <MedList items={night} icon={Moon} title="Night — evening" tint="#3D7DC8" />
-      </div>
-    </>
-  );
-}
-
-/* ================================================================== */
-/*  HISTORY                                                            */
-/* ================================================================== */
-function HistoryTab({ data, update }) {
-  const items = [...data.docs].sort((a, b) => b.date.localeCompare(a.date));
-
-  function downloadReport() {
-    const rows = items.map(i => `<tr><td>${i.date}</td><td>${i.kind}</td><td>${i.name}</td><td>${i.detail || ""}</td></tr>`).join("");
-    const labBlocks = data.labs.map(l => `
-      <h3>Lab report — ${l.date} (${l.fileName || ""})</h3>
-      <table><tr><th>Test</th><th>Result</th><th>Reference</th><th>Status</th></tr>
-      ${(l.values || []).map(v => `<tr><td>${v.name}</td><td>${v.value} ${v.unit || ""}</td><td>${v.normalRange || ""}</td><td style="color:${STATUS[v.status]?.color || "#888"}">${(v.status || "").toUpperCase()}</td></tr>`).join("")}
-      </table><p>${l.summary || ""}</p>`).join("");
-    const meds = data.meds.map(m => `<li>${m.name} ${m.dose || ""} — ${m.time === "both" ? "twice a day" : m.time}</li>`).join("");
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Health Report — Mikail Kocak</title>
-      <style>body{font-family:Georgia,serif;max-width:800px;margin:40px auto;color:#16202F}
-      h1{border-bottom:3px solid #C9A24B;padding-bottom:8px} table{width:100%;border-collapse:collapse;margin:10px 0}
-      td,th{border:1px solid #ccc;padding:6px 10px;font-size:13px;text-align:left}</style></head><body>
-      <h1>Personal Health Report — Mikail Kocak</h1>
-      <p>Born July 23, 1979 · Generated ${new Date().toLocaleString()}</p>
-      <h2>Activity history</h2><table><tr><th>Date</th><th>Type</th><th>Item</th><th>Detail</th></tr>${rows}</table>
-      <h2>Lab reports</h2>${labBlocks || "<p>None.</p>"}
-      <h2>Current medications</h2><ul>${meds || "<li>None.</li>"}</ul>
-      <p style="font-size:11px;color:#777">For personal records only — not medical advice.</p></body></html>`;
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `health-report-${new Date().toISOString().slice(0, 10)}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function removeItem(id) {
-    update(d => {
-      d.docs = d.docs.filter(x => x.id !== id);
-      d.labs = d.labs.filter(x => x.id !== id);
-      return d;
-    });
-  }
-
-  return (
-    <Panel>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
-        <Eyebrow>Everything you've uploaded or recorded</Eyebrow>
-        <Btn onClick={downloadReport} kind="soft"><Download size={15} /> Download full report (print to PDF)</Btn>
-      </div>
-      {items.length === 0 && <div style={{ color: T.dim, fontSize: 13 }}>Your history is empty. Upload a lab report or add a reading to start.</div>}
-      <div style={{ display: "grid", gap: 8 }}>
-        {items.map(i => (
-          <div key={i.id} style={{ display: "flex", alignItems: "center", gap: 12, background: T.bg, border: `1px solid ${T.line}`, borderRadius: 8, padding: "10px 12px" }}>
-            <FolderClock size={16} color={T.gold} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{i.kind}: {i.name}</div>
-              <div style={{ fontSize: 12, color: T.dim }}>{i.date} {i.detail ? `· ${i.detail}` : ""}</div>
-            </div>
-            <button onClick={() => removeItem(i.id)} aria-label="Delete entry" style={{ background: "none", border: "none", cursor: "pointer", color: T.dim }}>
-              <Trash2 size={15} />
-            </button>
-          </div>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
-/* ================================================================== */
-/*  AI DOCTOR CHAT                                                     */
-/* ================================================================== */
-function DoctorTab({ data, update }) {
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const endRef = useRef(null);
-
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [data.chat.length, busy]);
-
-  function buildContext() {
-    const g = data.readings.filter(r => r.type === "glucose").slice(-10);
-    const bp = data.readings.filter(r => r.type === "bp").slice(-10);
-    const lastLab = data.labs[data.labs.length - 1];
-    return `PATIENT CONTEXT (personal tracking app data):
-Patient: Mikail Kocak, male, born July 23, 1979 (age ${ageNow()})
-Recent glucose (mg/dL): ${g.map(r => `${r.date}: ${r.value}`).join("; ") || "none"}
-Recent blood pressure: ${bp.map(r => `${r.date}: ${r.sys}/${r.dia}`).join("; ") || "none"}
-Latest lab (${lastLab?.date || "none"}): ${lastLab ? lastLab.values.map(v => `${v.name}=${v.value}${v.unit || ""} [${v.status}]`).join("; ") : "none"}
-Medications: ${data.meds.map(m => `${m.name} ${m.dose || ""} (${m.time})`).join("; ") || "none"}`;
-  }
-
-  async function send() {
-    const q = input.trim();
-    if (!q || busy) return;
-    setInput("");
-    update(d => { d.chat.push({ role: "user", text: q, ts: Date.now() }); return d; });
-    setBusy(true);
-    try {
-      const history = [...data.chat, { role: "user", text: q }].slice(-12)
-        .map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
-      const sys = `You are Dr. Assistant, a careful clinical analysis AI inside Mikail Kocak's personal health-tracking app. Analyze his own data, explain values plainly, flag anything concerning, and always remind that final decisions belong to his real physician. Be direct and concise. Lead with what matters most, not validation.\n\n${buildContext()}`;
-      history[history.length - 1].content = sys + "\n\nPATIENT QUESTION: " + q;
-      const text = await callClaude(history);
-      update(d => { d.chat.push({ role: "ai", text, ts: Date.now() }); return d; });
-    } catch (e) {
-      update(d => { d.chat.push({ role: "ai", text: "Connection error — try again.", ts: Date.now() }); return d; });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Panel style={{ display: "flex", flexDirection: "column", height: 540 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <Stethoscope size={18} color={T.gold} />
-        <span style={{ fontWeight: 700 }}>AI Doctor</span>
-        <span style={{ fontSize: 11, color: T.green, display: "flex", alignItems: "center", gap: 5, fontWeight: 600 }}>
-          <StatusDot status="green" size={7} /> ready — sees your latest data
-        </span>
-        {data.chat.length > 0 && (
-          <button onClick={() => update(d => { d.chat = []; return d; })}
-            style={{ marginLeft: "auto", background: "none", border: "none", color: T.dim, fontSize: 12, cursor: "pointer" }}>
-            Clear chat
-          </button>
-        )}
-      </div>
-      <div style={{ flex: 1, overflowY: "auto", display: "grid", gap: 10, alignContent: "start", paddingRight: 4 }}>
-        {data.chat.length === 0 && (
-          <div style={{ color: T.dim, fontSize: 13, lineHeight: 1.6 }}>
-            Ask anything about your results — for example: "Analyze my latest labs",
-            "Is my glucose trend improving?", "Which of my values should worry me most?"
-          </div>
-        )}
-        {data.chat.map((m, i) => (
-          <div key={i} style={{
-            justifySelf: m.role === "user" ? "end" : "start",
-            maxWidth: "85%", background: m.role === "user" ? T.goldBright : T.panelSoft,
-            color: m.role === "user" ? "#FFFFFF" : T.text,
-            borderRadius: 12, padding: "10px 14px", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap"
-          }}>{m.text}</div>
-        ))}
-        {busy && <div style={{ color: T.dim, fontSize: 13, display: "flex", gap: 8, alignItems: "center" }}><Loader2 size={14} className="spin" /> Analyzing…</div>}
-        <div ref={endRef} />
-      </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <input style={{ ...inputStyle, flex: 1 }} placeholder="Ask the AI doctor…" value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") send(); }} />
-        <Btn onClick={send} disabled={busy || !input.trim()}><Send size={15} /></Btn>
-      </div>
-    </Panel>
-  );
-}
-
-/* ================================================================== */
-/*  NEWS                                                               */
-/* ================================================================== */
-const THREE_HOURS = 3 * 60 * 60 * 1000;
-
-function NewsTab({ data, update }) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-
-  const fetchNews = useCallback(async () => {
-    setBusy(true); setErr(null);
-    try {
-      const prompt = `Search the web for today's most important health news on: longevity research, blood sugar / diabetes management, blood pressure / cardiovascular health, and major medical breakthroughs.
-After searching, respond ONLY with raw JSON (no markdown fences, no preamble):
-{"items":[{"title":"...","summary":"2 sentences in your own words","source":"publication name","topic":"longevity|glucose|cardio|breakthrough"}]}
-Return 5-6 items, most important first.`;
-      const text = await callClaude(
-        [{ role: "user", content: prompt }],
-        [{ type: "web_search_20250305", name: "web_search" }]
-      );
-      const parsed = parseJSON(text);
-      update(d => { d.news = { items: parsed.items || [], fetchedAt: Date.now() }; return d; });
-    } catch (e) {
-      console.error(e);
-      setErr("Could not load news right now. Try refresh again.");
-    } finally {
-      setBusy(false);
-    }
-  }, [update]);
-
-  useEffect(() => {
-    if (!data.news || Date.now() - data.news.fetchedAt > THREE_HOURS) fetchNews();
-    const id = setInterval(fetchNews, THREE_HOURS);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const topicColor = { longevity: T.goldBright, glucose: T.green, cardio: T.red, breakthrough: "#3D7DC8" };
-
-  return (
-    <Panel>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-        <Eyebrow>Health news — longevity · glucose · cardio</Eyebrow>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-          {data.news && <span style={{ fontSize: 11, color: T.dim }}>Updated {new Date(data.news.fetchedAt).toLocaleTimeString()}</span>}
-          <Btn onClick={fetchNews} disabled={busy} kind="soft">
-            {busy ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} Refresh
-          </Btn>
-        </div>
-      </div>
-      <div style={{ fontSize: 11, color: T.dim, marginBottom: 12 }}>
-        Auto-refreshes every 3 hours while the app is open.
-      </div>
-      {err && <div style={{ color: T.red, fontSize: 13, marginBottom: 10 }}>{err}</div>}
-      {busy && !data.news && <div style={{ color: T.dim, fontSize: 13 }}><Loader2 size={14} className="spin" style={{ verticalAlign: "-2px" }} /> Searching the latest health news…</div>}
-      <div style={{ display: "grid", gap: 10 }}>
-        {(data.news?.items || []).map((n, i) => (
-          <div key={i} style={{ background: T.bg, border: `1px solid ${T.line}`, borderLeft: `3px solid ${topicColor[n.topic] || T.goldBright}`, borderRadius: 8, padding: "12px 14px" }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-              <span style={{ fontWeight: 700, fontSize: 14, flex: 1, minWidth: 200 }}>{n.title}</span>
-              <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, color: topicColor[n.topic] || T.gold }}>{n.topic}</span>
-            </div>
-            <div style={{ fontSize: 13, color: T.dim, lineHeight: 1.55, marginTop: 4 }}>{n.summary}</div>
-            {n.source && <div style={{ fontSize: 11, color: T.dim, marginTop: 6, fontStyle: "italic" }}>{n.source}</div>}
-          </div>
-        ))}
-      </div>
-    </Panel>
-  );
-}
+          <input
