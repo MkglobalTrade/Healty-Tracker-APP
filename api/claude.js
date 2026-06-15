@@ -7,57 +7,73 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Usamos la misma variable que ya tienes guardada en Vercel
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: "Clave de API no configurada en Vercel." });
+  // Usamos la clave de OpenAI que ya tienes guardada en tu Vercel
+  if (!process.env.Open_Ai_Key) {
+    return res.status(500).json({ error: "Clave Open_Ai_Key no encontrada en Vercel." });
   }
 
   try {
     const requestBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     
-    // Extraer el mensaje y la imagen/documento del formato original
+    // Extraer los mensajes del formato original
     const userMessage = requestBody.messages?.[requestBody.messages.length - 1];
     let promptText = "";
-    let inlineData = null;
+    let imageUrl = null;
 
     if (Array.isArray(userMessage.content)) {
       const textBlock = userMessage.content.find(b => b.type === "text");
-      const fileBlock = userMessage.content.find(b => b.type === "document" || b.type === "image");
+      const fileBlock = userMessage.content.find(b => b.type === "image" || b.type === "document");
       
       promptText = textBlock ? textBlock.text : "";
       if (fileBlock && fileBlock.source) {
-        inlineData = {
-          mimeType: fileBlock.source.media_type,
-          data: fileBlock.source.data
-        };
+        // Formatear la imagen/PDF en base64 para OpenAI
+        imageUrl = `data:${fileBlock.source.media_type};base64,${fileBlock.source.data}`;
       }
     } else {
       promptText = userMessage.content || requestBody.messages?.[0]?.content || "";
     }
 
-    // Estructurar la petición para la API oficial de Google Gemini
-    const contents = [];
-    if (inlineData) {
-      contents.push({
-        parts: [
-          { text: promptText },
-          { inlineData: inlineData }
+    // Estructurar el mensaje para el modelo GPT-4o de OpenAI
+    const openAiMessages = [
+      {
+        role: "system",
+        content: requestBody.system || "You are a clinical lab report analyzer. Extract all test results."
+      }
+    ];
+
+    if (imageUrl) {
+      openAiMessages.push({
+        role: "user",
+        content: [
+          { type: "text", text: promptText },
+          { type: "image_url", image_url: { url: imageUrl } }
         ]
       });
     } else {
-      contents.push({ parts: [{ text: promptText }] });
+      openAiMessages.push({
+        role: "user",
+        content: promptText
+      });
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.ANTHROPIC_API_KEY}`, {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents })
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.Open_Ai_Key}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: openAiMessages,
+        max_tokens: 1500,
+        response_format: { type: "json_object" } // Asegurar que responda en JSON puro
+      })
     });
 
-    const geminiData = await response.json();
-    const replyText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const openAiData = await response.json();
+    const replyText = openAiData.choices?.[0]?.message?.content || "";
 
-    // Devolver el formato exacto que tu App espera recibir en la interfaz
+    // Devolver el formato exacto que la interfaz visual espera recibir
     return res.status(200).json({
       content: [{ type: "text", text: replyText }]
     });
