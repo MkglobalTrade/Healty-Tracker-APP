@@ -1,7 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
+// Vercel serverless function — keeps your Anthropic API key secret on the server.
+// Set ANTHROPIC_API_KEY in Vercel: Project -> Settings -> Environment Variables.
 
 export default async function handler(req, res) {
-  // Manejar peticiones CORS preflight
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
@@ -11,27 +11,29 @@ export default async function handler(req, res) {
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: "ANTHROPIC_API_KEY no configurada en Vercel." });
+    return res.status(500).json({ error: "ANTHROPIC_API_KEY is not configured in Vercel." });
   }
 
   try {
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-
     const requestBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    
+    if (!requestBody.model) {
+      requestBody.model = "claude-3-5-sonnet-20241022";
+    }
 
-    // Ejecutar la petición usando el SDK oficial estructurado para imágenes/PDFs
-    const message = await anthropic.messages.create({
-      model: requestBody.model || "claude-3-5-sonnet-20241022",
-      max_tokens: requestBody.max_tokens || 4000,
-      messages: requestBody.messages,
-      system: requestBody.system,
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    return res.status(200).json(message);
+    const data = await r.json();
+    return res.status(r.status).json(data);
   } catch (e) {
-    console.error("Errores en la función de Claude:", e);
-    return res.status(500).json({ error: e.message || String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 }
