@@ -233,8 +233,7 @@ export function useHealthData() {
   }, [labResults])
 
   const getTodayMedications = useCallback(() => {
-    const today = format(new Date(), 'yyyy-MM-dd')
-    const takenIds = new Set(medLogs.filter(l => l.takenAt.startsWith(today)).map(l => l.medicationId))
+    const takenIds = new Set(medLogs.filter(l => l.takenAt.startsWith(format(new Date(), 'yyyy-MM-dd'))).map(l => l.medicationId))
     return medications.filter(m => m.active).map(m => ({
       ...m,
       morningTaken: takenIds.has(m.id) && m.frequency !== 'evening',

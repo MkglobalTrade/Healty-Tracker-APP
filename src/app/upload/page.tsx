@@ -1,25 +1,10 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useRef } from 'react'
 import { format } from 'date-fns'
 import {
-  Upload,
-  FileText,
-  Image,
-  X,
-  Check,
-  Droplets,
-  ChevronDown,
-  Camera,
-  FileUp,
-  Sparkles,
-  Loader2,
-  Search,
-  Filter,
-  Trash2,
-  Eye,
-  TrendingUp,
+  Upload, FileText, ImageIcon, X, Check, Droplets,
+  Trash2, Loader2, Camera,
 } from 'lucide-react'
 import { useHealthData } from '@/hooks/useHealthData'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,120 +12,109 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import {
-  LAB_CATEGORIES,
-  SUGAR_UNITS,
-  TIME_OF_DAY,
-  MEAL_TYPE,
-  getSugarStatus,
-  getCategoryById,
+  LAB_CATEGORIES, SUGAR_UNITS, TIME_OF_DAY, MEAL_TYPE,
+  getSugarStatus, getCategoryById,
 } from '@/lib/health-categories'
+import { useToast } from '@/components/toast-provider'
 import { cn } from '@/lib/utils'
 
-type TabType = 'lab' | 'sugar'
-
-function simulateOCR(fileName: string): string {
-  const keywords: Record<string, string[]> = {
-    blood_work: ['CBC', 'hemoglobin', 'hematocrit', 'WBC', 'RBC', 'platelet', 'blood count'],
-    metabolic: ['glucose', 'creatinine', 'BUN', 'eGFR', 'sodium', 'potassium', 'CMP', 'BMP'],
-    lipid: ['cholesterol', 'LDL', 'HDL', 'triglyceride', 'lipid'],
-    thyroid: ['TSH', 'T3', 'T4', 'thyroid'],
-    vitamin: ['vitamin D', 'B12', 'folate', 'vitamin'],
-    hormone: ['testosterone', 'estrogen', 'progesterone', 'cortisol', 'hormone'],
-    urinalysis: ['urine', 'UA', 'protein', 'ketone', 'urinalysis'],
-    imaging: ['X-ray', 'MRI', 'CT', 'ultrasound', 'imaging', 'radiology'],
-    stelo: ['Stelo', 'Dexcom', 'CGM', 'continuous glucose', 'glucose monitor'],
-  }
-  
-  const lowerName = fileName.toLowerCase()
-  for (const [cat, words] of Object.entries(keywords)) {
-    if (words.some(w => lowerName.includes(w.toLowerCase()))) {
-      return cat
+// Downscale large images to keep localStorage usage sane (~1280px max edge, JPEG q0.7)
+function processFile(file: File): Promise<{ dataUrl: string; type: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('read error'))
+    reader.onload = () => {
+      const result = reader.result as string
+      if (!file.type.startsWith('image/')) {
+        resolve({ dataUrl: result, type: file.type || 'application/octet-stream' })
+        return
+      }
+      const img = new Image()
+      img.onload = () => {
+        const maxEdge = 1280
+        let { width, height } = img
+        if (width > maxEdge || height > maxEdge) {
+          const scale = maxEdge / Math.max(width, height)
+          width = Math.round(width * scale)
+          height = Math.round(height * scale)
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { resolve({ dataUrl: result, type: file.type }); return }
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.7), type: 'image/jpeg' })
+      }
+      img.onerror = () => resolve({ dataUrl: result, type: file.type })
+      img.src = result
     }
-  }
-  return 'other'
+    reader.readAsDataURL(file)
+  })
 }
 
 export default function UploadPage() {
-  const router = useRouter()
-  const { labResults, sugarReadings, addLabResult, addSugarReading, deleteLabResult, deleteSugarReading } = useHealthData()
-  const [activeTab, setActiveTab] = useState<TabType>('lab')
-  const [isDragging, setIsDragging] = useState(false)
-  const [ocrLoading, setOcrLoading] = useState(false)
-  const [previewFile, setPreviewFile] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [filterCategory, setFilterCategory] = useState('all')
+  const {
+    labResults, addLabResult, deleteLabResult,
+    sugarReadings, addSugarReading,
+  } = useHealthData()
+  const { addToast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const imageInputRef = useRef<HTMLInputElement>(null)
 
+  const [tab, setTab] = useState<'lab' | 'glucose'>('lab')
+  const [dragging, setDragging] = useState(false)
+  const [processing, setProcessing] = useState(false)
+
+  // Lab form
   const [labForm, setLabForm] = useState({
-    title: '',
-    category: '',
-    date: format(new Date(), 'yyyy-MM-dd'),
-    fileUrl: '',
-    fileType: '',
+    title: '', category: 'blood_work', date: format(new Date(), 'yyyy-MM-dd'),
   })
+  const [preview, setPreview] = useState<{ dataUrl: string; type: string } | null>(null)
 
+  // Glucose form
   const [sugarForm, setSugarForm] = useState({
-    value: '',
-    unit: 'mg/dL',
-    date: format(new Date(), 'yyyy-MM-dd'),
-    timeOfDay: 'morning',
-    mealType: 'fasting',
-    notes: '',
+    value: '', unit: 'mg/dL', date: format(new Date(), 'yyyy-MM-dd'),
+    timeOfDay: 'morning', mealType: 'fasting', notes: '',
   })
 
-  const handleFile = async (file: File, type: 'pdf' | 'image') => {
-    setOcrLoading(true)
-    const reader = new FileReader()
-    reader.onload = () => {
-      const base64 = reader.result as string
-      const detectedCategory = simulateOCR(file.name)
-      
-      setLabForm(prev => ({
-        ...prev,
-        title: file.name.replace(/\.[^/.]+$/, ''),
-        category: detectedCategory,
-        fileUrl: base64,
-        fileType: type,
-      }))
-      setPreviewFile(base64)
-      setOcrLoading(false)
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const file = files[0]
+    setProcessing(true)
+    try {
+      const processed = await processFile(file)
+      setPreview(processed)
+      if (!labForm.title) {
+        setLabForm(prev => ({ ...prev, title: file.name.replace(/\.[^/.]+$/, '') }))
+      }
+      addToast('File ready. Add details and save.', 'success')
+    } catch {
+      addToast('Could not read that file', 'error')
+    } finally {
+      setProcessing(false)
     }
-    reader.readAsDataURL(file)
   }
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-    const files = e.dataTransfer.files
-    if (files.length > 0) {
-      const file = files[0]
-      if (file.type === 'application/pdf') {
-        handleFile(file, 'pdf')
-      } else if (file.type.startsWith('image/')) {
-        handleFile(file, 'image')
-      }
-    }
-  }, [])
-
-  const handleSubmitLab = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!labForm.title || !labForm.category) return
+  const saveLab = () => {
+    if (!labForm.title.trim()) return addToast('Please enter a title', 'warning')
     addLabResult({
-      title: labForm.title,
+      title: labForm.title.trim(),
       category: labForm.category,
       date: new Date(labForm.date).toISOString(),
-      fileUrl: labForm.fileUrl,
-      fileType: labForm.fileType,
+      fileUrl: preview?.dataUrl,
+      fileType: preview?.type,
     })
-    setLabForm({ title: '', category: '', date: format(new Date(), 'yyyy-MM-dd'), fileUrl: '', fileType: '' })
-    setPreviewFile(null)
+    addToast('Lab report saved', 'success')
+    setLabForm({ title: '', category: 'blood_work', date: format(new Date(), 'yyyy-MM-dd') })
+    setPreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleSubmitSugar = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!sugarForm.value) return
+  const saveGlucose = () => {
+    if (!sugarForm.value) return addToast('Please enter a glucose value', 'warning')
     addSugarReading({
       value: parseFloat(sugarForm.value),
       unit: sugarForm.unit,
@@ -149,509 +123,274 @@ export default function UploadPage() {
       mealType: sugarForm.mealType,
       notes: sugarForm.notes,
     })
-    setSugarForm({ value: '', unit: 'mg/dL', date: format(new Date(), 'yyyy-MM-dd'), timeOfDay: 'morning', mealType: 'fasting', notes: '' })
+    addToast('Glucose reading saved', 'success')
+    setSugarForm({
+      value: '', unit: sugarForm.unit, date: format(new Date(), 'yyyy-MM-dd'),
+      timeOfDay: 'morning', mealType: 'fasting', notes: '',
+    })
   }
 
-  const filteredLabs = labResults.filter(lab => {
-    const matchesSearch = lab.title.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = filterCategory === 'all' || lab.category === filterCategory
-    return matchesSearch && matchesCategory
-  })
-
-  const filteredSugar = sugarReadings.filter(r => {
-    const searchStr = `${r.value} ${r.notes}`.toLowerCase()
-    return searchStr.includes(searchQuery.toLowerCase())
-  })
+  const glucoseStatus = sugarForm.value
+    ? getSugarStatus(parseFloat(sugarForm.value), sugarForm.unit)
+    : null
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Upload Results</h1>
-          <p className="text-sm text-muted-foreground">Upload lab reports, Stelo CGM data, and glucose readings</p>
-        </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-fade-in">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Upload</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Add lab reports, Stelo CGM screenshots, and glucose readings
+        </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit">
+      <div className="flex gap-2">
         <button
-          onClick={() => setActiveTab('lab')}
+          onClick={() => setTab('lab')}
           className={cn(
-            'px-4 py-2 rounded-md text-sm font-medium transition-all',
-            activeTab === 'lab' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all border',
+            tab === 'lab' ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-transparent hover:border-border'
           )}
         >
-          <span className="flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Lab Reports
-          </span>
+          <FileText className="w-4 h-4" /> Lab Report
         </button>
         <button
-          onClick={() => setActiveTab('sugar')}
+          onClick={() => setTab('glucose')}
           className={cn(
-            'px-4 py-2 rounded-md text-sm font-medium transition-all',
-            activeTab === 'sugar' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all border',
+            tab === 'glucose' ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-transparent hover:border-border'
           )}
         >
-          <span className="flex items-center gap-2">
-            <Droplets className="w-4 h-4" />
-            Glucose / Stelo
-          </span>
+          <Droplets className="w-4 h-4" /> Glucose Reading
         </button>
       </div>
 
-      {activeTab === 'lab' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Upload Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Upload Lab Report</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Drop Zone */}
-              <div
-                onDrop={onDrop}
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
-                onDragLeave={() => setIsDragging(false)}
-                className={cn(
-                  'border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer',
-                  isDragging ? 'border-primary bg-primary-50' : 'border-border hover:border-primary/50',
-                  previewFile && 'bg-green-50 border-green-300'
-                )}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) {
-                      if (file.type === 'application/pdf') handleFile(file, 'pdf')
-                      else if (file.type.startsWith('image/')) handleFile(file, 'image')
-                    }
-                  }}
-                />
-                {ocrLoading ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">Analyzing document...</p>
-                  </div>
-                ) : previewFile ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                      <Check className="w-6 h-6 text-green-600" />
-                    </div>
-                    <p className="text-sm font-medium text-green-700">File ready</p>
-                    <p className="text-xs text-muted-foreground">Click to change file</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-12 h-12 rounded-full bg-primary-50 flex items-center justify-center">
-                      <FileUp className="w-6 h-6 text-primary" />
-                    </div>
-                    <p className="text-sm font-medium">Drop file here or click to upload</p>
-                    <p className="text-xs text-muted-foreground">PDF, JPG, PNG (Max 10MB)</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Preview */}
-              {previewFile && (
-                <div className="relative rounded-lg overflow-hidden border border-border">
-                  {labForm.fileType === 'image' ? (
-                    <img src={previewFile} alt="Preview" className="w-full max-h-[200px] object-contain" />
+      {tab === 'lab' && (
+        <Card className="animate-slide-up">
+          <CardHeader>
+            <CardTitle className="text-lg">Upload Lab Report</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Dropzone */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files) }}
+              onClick={() => fileInputRef.current?.click()}
+              className={cn(
+                'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all',
+                dragging ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'
+              )}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                className="hidden"
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+              {processing ? (
+                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-8 h-8 animate-spin" />
+                  <p className="text-sm">Processing file...</p>
+                </div>
+              ) : preview ? (
+                <div className="flex flex-col items-center gap-3">
+                  {preview.type.startsWith('image/') ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={preview.dataUrl} alt="Preview" className="max-h-48 rounded-lg shadow-sm" />
                   ) : (
-                    <div className="p-4 bg-red-50 flex items-center gap-3">
-                      <FileText className="w-8 h-8 text-red-500" />
-                      <div>
-                        <p className="text-sm font-medium">PDF Document</p>
-                        <p className="text-xs text-muted-foreground">Preview not available</p>
-                      </div>
-                    </div>
+                    <div className="flex items-center gap-2 text-sm"><FileText className="w-6 h-6 text-primary" /> PDF ready</div>
                   )}
                   <button
-                    onClick={() => {
-                      setPreviewFile(null)
-                      setLabForm(prev => ({ ...prev, fileUrl: '', fileType: '' }))
-                    }}
-                    className="absolute top-2 right-2 p-1 rounded-full bg-white/90 hover:bg-white shadow-sm"
+                    onClick={(e) => { e.stopPropagation(); setPreview(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                    className="text-xs text-red-500 flex items-center gap-1 hover:underline"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-3 h-3" /> Remove
                   </button>
                 </div>
-              )}
-
-              <form onSubmit={handleSubmitLab} className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Title</label>
-                  <Input
-                    value={labForm.title}
-                    onChange={(e) => setLabForm(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="e.g. Annual Blood Work 2024"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Category</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {LAB_CATEGORIES.map((cat) => (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setLabForm(prev => ({ ...prev, category: cat.id }))}
-                        className={cn(
-                          'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all border',
-                          labForm.category === cat.id
-                            ? 'border-primary bg-primary-50 text-primary-700'
-                            : 'border-border hover:border-primary/30'
-                        )}
-                      >
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Date</label>
-                  <Input
-                    type="date"
-                    value={labForm.date}
-                    onChange={(e) => setLabForm(prev => ({ ...prev, date: e.target.value }))}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full gap-2">
-                  <Sparkles className="w-4 h-4" />
-                  Save Lab Report
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Lab List */}
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-blue-500" />
-                  Your Lab Reports
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {/* Filters */}
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      placeholder="Search reports..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                  <Select
-                    value={filterCategory}
-                    onChange={(e) => setFilterCategory(e.target.value)}
-                    className="w-40"
-                  >
-                    <option value="all">All Categories</option>
-                    {LAB_CATEGORIES.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.label}</option>
-                    ))}
-                  </Select>
-                </div>
-
-                {filteredLabs.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No lab reports yet</p>
-                    <p className="text-xs text-muted-foreground">Upload your first report to get started</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-[500px] overflow-y-auto scrollbar-hide">
-                    {filteredLabs.map((lab) => {
-                      const cat = getCategoryById(lab.category)
-                      return (
-                        <div
-                          key={lab.id}
-                          className="flex items-center gap-3 p-3 rounded-lg border border-border hover:shadow-sm transition-all group"
-                        >
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                            style={{ backgroundColor: cat.color + '15' }}
-                          >
-                            {lab.fileType === 'pdf' ? (
-                              <FileText className="w-5 h-5" style={{ color: cat.color }} />
-                            ) : (
-                              <Image className="w-5 h-5" style={{ color: cat.color }} />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{lab.title}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-xs px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: cat.color }}>
-                                {cat.label}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {format(new Date(lab.date), 'MMM d, yyyy')}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {lab.fileUrl && (
-                              <button
-                                onClick={() => window.open(lab.fileUrl, '_blank')}
-                                className="p-1.5 rounded-lg hover:bg-muted"
-                                title="View"
-                              >
-                                <Eye className="w-4 h-4 text-muted-foreground" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => deleteLabResult(lab.id)}
-                              className="p-1.5 rounded-lg hover:bg-red-50"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4 text-red-500" />
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Sugar Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-orange-500" />
-                Glucose Reading
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmitSugar} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Value</label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={sugarForm.value}
-                      onChange={(e) => setSugarForm(prev => ({ ...prev, value: e.target.value }))}
-                      placeholder="120"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Unit</label>
-                    <Select
-                      value={sugarForm.unit}
-                      onChange={(e) => setSugarForm(prev => ({ ...prev, unit: e.target.value }))}
-                    >
-                      {SUGAR_UNITS.map(u => (
-                        <option key={u.value} value={u.value}>{u.label}</option>
-                      ))}
-                    </Select>
-                  </div>
-                </div>
-
-                {sugarForm.value && (
-                  <div className="p-3 rounded-lg bg-muted">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">Status:</span>
-                      <span
-                        className="text-sm px-2 py-0.5 rounded-full text-white font-medium"
-                        style={{ backgroundColor: getSugarStatus(parseFloat(sugarForm.value), sugarForm.unit).color }}
-                      >
-                        {getSugarStatus(parseFloat(sugarForm.value), sugarForm.unit).status}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Date</label>
-                    <Input
-                      type="date"
-                      value={sugarForm.date}
-                      onChange={(e) => setSugarForm(prev => ({ ...prev, date: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Time of Day</label>
-                    <Select
-                      value={sugarForm.timeOfDay}
-                      onChange={(e) => setSugarForm(prev => ({ ...prev, timeOfDay: e.target.value }))}
-                    >
-                      {TIME_OF_DAY.map(t => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </Select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Meal Context</label>
-                  <Select
-                    value={sugarForm.mealType}
-                    onChange={(e) => setSugarForm(prev => ({ ...prev, mealType: e.target.value }))}
-                  >
-                    {MEAL_TYPE.map(m => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))}
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Notes (optional)</label>
-                  <Textarea
-                    value={sugarForm.notes}
-                    onChange={(e) => setSugarForm(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Any observations, symptoms, or notes..."
-                    rows={3}
-                  />
-                </div>
-
-                <Button type="submit" className="w-full gap-2">
-                  <Droplets className="w-4 h-4" />
-                  Save Reading
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Stelo Photo Upload */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Camera className="w-5 h-5 text-orange-500" />
-                Stelo / CGM Photo Upload
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/50 transition-all cursor-pointer"
-                onClick={() => imageInputRef.current?.click()}
-              >
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) {
-                      const reader = new FileReader()
-                      reader.onload = () => {
-                        addSugarReading({
-                          value: 0,
-                          unit: 'mg/dL',
-                          date: new Date().toISOString(),
-                          timeOfDay: 'morning',
-                          mealType: 'fasting',
-                          notes: `Stelo CGM screenshot - ${file.name}`,
-                          imageUrl: reader.result as string,
-                        })
-                      }
-                      reader.readAsDataURL(file)
-                    }
-                  }}
-                />
-                <Camera className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm font-medium">Take photo of Stelo app</p>
-                <p className="text-xs text-muted-foreground">Screenshots from your CGM app</p>
-              </div>
-
-              <div className="p-4 rounded-lg bg-orange-50 border border-orange-100">
-                <p className="text-sm font-medium text-orange-800 mb-1">💡 Pro Tip</p>
-                <p className="text-xs text-orange-700">
-                  Take screenshots directly from your Stelo app and upload them here. 
-                  We'll store them for reference. You can also manually enter the glucose value above.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Sugar History */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Droplets className="w-5 h-5 text-orange-500" />
-                Glucose History
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {sugarReadings.length === 0 ? (
-                <div className="text-center py-8">
-                  <Droplets className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">No readings yet</p>
-                </div>
               ) : (
-                <div className="space-y-2 max-h-[400px] overflow-y-auto scrollbar-hide">
-                  {filteredSugar.map((reading) => {
-                    const status = getSugarStatus(reading.value, reading.unit)
-                    return (
-                      <div
-                        key={reading.id}
-                        className="flex items-center gap-3 p-3 rounded-lg border border-border hover:shadow-sm transition-all group"
-                      >
-                        <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: status.color + '15' }}
-                        >
-                          <Droplets className="w-5 h-5" style={{ color: status.color }} />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg font-bold">{reading.value}</span>
-                            <span className="text-sm text-muted-foreground">{reading.unit}</span>
-                            <span
-                              className="text-xs px-1.5 py-0.5 rounded-full text-white"
-                              style={{ backgroundColor: status.color }}
-                            >
-                              {status.status}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                            <span>{format(new Date(reading.date), 'MMM d, yyyy')}</span>
-                            <span>•</span>
-                            <span>{reading.timeOfDay}</span>
-                            <span>•</span>
-                            <span>{reading.mealType}</span>
-                          </div>
-                          {reading.notes && (
-                            <p className="text-xs text-muted-foreground mt-1">{reading.notes}</p>
-                          )}
-                        </div>
-                        {reading.imageUrl && (
-                          <img src={reading.imageUrl} alt="CGM" className="w-12 h-12 rounded object-cover" />
-                        )}
-                        <button
-                          onClick={() => deleteSugarReading(reading.id)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </button>
-                      </div>
-                    )
-                  })}
+                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Upload className="w-6 h-6 text-primary" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground">Drop file or click to upload</p>
+                  <p className="text-xs flex items-center gap-1">
+                    <ImageIcon className="w-3 h-3" /> Image or
+                    <FileText className="w-3 h-3" /> PDF
+                  </p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-3">
+                <Label>Title</Label>
+                <Input
+                  value={labForm.title}
+                  onChange={(e) => setLabForm(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="e.g. Complete Blood Count — June"
+                />
+              </div>
+              <div>
+                <Label>Category</Label>
+                <Select
+                  value={labForm.category}
+                  onChange={(e) => setLabForm(prev => ({ ...prev, category: e.target.value }))}
+                >
+                  {LAB_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </Select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={labForm.date}
+                  onChange={(e) => setLabForm(prev => ({ ...prev, date: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Camera className="w-3.5 h-3.5" />
+              Tip: screenshots from your CGM app are stored locally on your device only.
+            </div>
+
+            <Button onClick={saveLab} className="w-full gap-2 bg-gradient-to-r from-primary to-sky-400 hover:opacity-90">
+              <Check className="w-4 h-4" /> Save Lab Report
+            </Button>
+          </CardContent>
+        </Card>
       )}
+
+      {tab === 'glucose' && (
+        <Card className="animate-slide-up">
+          <CardHeader>
+            <CardTitle className="text-lg">Add Glucose Reading</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Value</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={sugarForm.value}
+                  onChange={(e) => setSugarForm(prev => ({ ...prev, value: e.target.value }))}
+                  placeholder="95"
+                />
+              </div>
+              <div>
+                <Label>Unit</Label>
+                <Select
+                  value={sugarForm.unit}
+                  onChange={(e) => setSugarForm(prev => ({ ...prev, unit: e.target.value }))}
+                >
+                  {SUGAR_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+                </Select>
+              </div>
+            </div>
+
+            {glucoseStatus && (
+              <div className="p-3 rounded-lg bg-muted flex items-center gap-2">
+                <span className="text-sm font-medium">Status:</span>
+                <Badge style={{ backgroundColor: glucoseStatus.color, color: '#fff' }}>{glucoseStatus.status}</Badge>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Time of Day</Label>
+                <Select
+                  value={sugarForm.timeOfDay}
+                  onChange={(e) => setSugarForm(prev => ({ ...prev, timeOfDay: e.target.value }))}
+                >
+                  {TIME_OF_DAY.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </Select>
+              </div>
+              <div>
+                <Label>Meal Context</Label>
+                <Select
+                  value={sugarForm.mealType}
+                  onChange={(e) => setSugarForm(prev => ({ ...prev, mealType: e.target.value }))}
+                >
+                  {MEAL_TYPE.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={sugarForm.date}
+                  onChange={(e) => setSugarForm(prev => ({ ...prev, date: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>Notes</Label>
+              <Textarea
+                value={sugarForm.notes}
+                onChange={(e) => setSugarForm(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="What did you eat? How did you feel?"
+                rows={2}
+              />
+            </div>
+
+            <Button onClick={saveGlucose} className="w-full gap-2 bg-gradient-to-r from-primary to-sky-400 hover:opacity-90">
+              <Droplets className="w-4 h-4" /> Save Reading
+            </Button>
+
+            {sugarReadings.length > 0 && (
+              <p className="text-xs text-muted-foreground text-center">
+                {sugarReadings.length} glucose reading{sugarReadings.length === 1 ? '' : 's'} stored
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Lab list */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Your Lab Reports</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {labResults.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No lab reports yet</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {labResults.map(lab => {
+                const cat = getCategoryById(lab.category)
+                return (
+                  <div key={lab.id} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:shadow-sm transition-all group">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: cat.color + '15' }}>
+                      <FileText className="w-5 h-5" style={{ color: cat.color }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{lab.title}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(lab.date), 'MMM d, yyyy')}</p>
+                    </div>
+                    <Badge style={{ backgroundColor: cat.color, color: '#fff' }} className="text-[10px]">{cat.label}</Badge>
+                    <button
+                      onClick={() => { deleteLabResult(lab.id); addToast('Lab report deleted', 'info') }}
+                      className="p-1.5 rounded-lg hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

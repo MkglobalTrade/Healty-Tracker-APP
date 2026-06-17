@@ -2,52 +2,45 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  Home,
-  Upload,
-  HeartPulse,
-  Pill,
-  Brain,
-  Newspaper,
-  FileDown,
-  Menu,
-  X,
-} from 'lucide-react'
 import { useState } from 'react'
+import {
+  Home, Upload, HeartPulse, Pill, Brain, Newspaper, FileDown, Menu, X, Moon, Sun, Heart,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTheme } from '@/components/theme-provider'
 
 const navItems = [
   { href: '/', label: 'Home', icon: Home },
-  { href: '/upload', label: 'Upload', icon: Upload },
-  { href: '/blood-pressure', label: 'Blood Pressure', icon: HeartPulse },
-  { href: '/medications', label: 'Medications', icon: Pill },
-  { href: '/dr-ai', label: 'Dr. AI', icon: Brain },
-  { href: '/news', label: 'News', icon: Newspaper },
-  { href: '/export', label: 'Export', icon: FileDown },
+  { href: '/upload/', label: 'Upload', icon: Upload },
+  { href: '/blood-pressure/', label: 'Blood Pressure', icon: HeartPulse },
+  { href: '/medications/', label: 'Medications', icon: Pill },
+  { href: '/dr-ai/', label: 'Dr. AI', icon: Brain },
+  { href: '/news/', label: 'News', icon: Newspaper },
+  { href: '/export/', label: 'Export', icon: FileDown },
 ]
 
 export function Navigation() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
+  const { theme, toggle } = useTheme()
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-border">
+    <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-400 to-health-accent flex items-center justify-center">
-              <HeartPulse className="w-5 h-5 text-white" />
+        <div className="flex justify-between h-16 items-center">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-sky-400 flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
+              <Heart className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-primary-600 to-health-accent bg-clip-text text-transparent">
+            <span className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-sky-400">
               VitaTrack
             </span>
-          </div>
+          </Link>
 
-          {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.href
+              const isActive = pathname === item.href || pathname === item.href.slice(0, -1)
               return (
                 <Link
                   key={item.href}
@@ -55,7 +48,7 @@ export function Navigation() {
                   className={cn(
                     'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all',
                     isActive
-                      ? 'bg-primary-50 text-primary-700'
+                      ? 'bg-primary/10 text-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                   )}
                 >
@@ -64,25 +57,39 @@ export function Navigation() {
                 </Link>
               )
             })}
+            <button
+              onClick={toggle}
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all ml-1"
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
           </div>
 
-          {/* Mobile Toggle */}
-          <button
-            className="md:hidden p-2 rounded-lg hover:bg-muted"
-            onClick={() => setMobileOpen(!mobileOpen)}
-          >
-            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          <div className="flex md:hidden items-center gap-2">
+            <button
+              onClick={toggle}
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+            <button
+              className="p-2 rounded-lg hover:bg-muted transition-colors"
+              onClick={() => setMobileOpen(!mobileOpen)}
+            >
+              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-border bg-white">
+        <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-xl">
           <div className="px-2 py-3 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.href
+              const isActive = pathname === item.href || pathname === item.href.slice(0, -1)
               return (
                 <Link
                   key={item.href}
@@ -91,7 +98,7 @@ export function Navigation() {
                   className={cn(
                     'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all',
                     isActive
-                      ? 'bg-primary-50 text-primary-700'
+                      ? 'bg-primary/10 text-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                   )}
                 >

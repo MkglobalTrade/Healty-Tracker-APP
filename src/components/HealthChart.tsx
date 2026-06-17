@@ -43,20 +43,20 @@ export function SugarChart({ data }: SugarChartProps) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis 
-                dataKey="label" 
-                tick={{ fontSize: 10 }} 
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10 }}
                 interval="preserveStartEnd"
                 stroke="#64748b"
               />
-              <YAxis 
-                domain={[0, maxValue]} 
-                tick={{ fontSize: 10 }} 
+              <YAxis
+                domain={[0, maxValue]}
+                tick={{ fontSize: 10 }}
                 stroke="#64748b"
               />
-              <Tooltip 
-                contentStyle={{ 
-                  borderRadius: '8px', 
+              <Tooltip
+                contentStyle={{
+                  borderRadius: '8px',
                   border: '1px solid #e2e8f0',
                   fontSize: '12px'
                 }}
@@ -65,12 +65,12 @@ export function SugarChart({ data }: SugarChartProps) {
               <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" strokeOpacity={0.5} />
               <ReferenceLine y={100} stroke="#10b981" strokeDasharray="3 3" strokeOpacity={0.5} />
               <ReferenceLine y={140} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} />
-              <Area 
-                type="monotone" 
-                dataKey="displayValue" 
-                stroke="#f97316" 
+              <Area
+                type="monotone"
+                dataKey="displayValue"
+                stroke="#f97316"
                 strokeWidth={2}
-                fill="url(#sugarGradient)" 
+                fill="url(#sugarGradient)"
                 dot={{ r: 3, fill: '#f97316' }}
                 activeDot={{ r: 5 }}
               />
@@ -107,38 +107,38 @@ export function BPChart({ data }: BPChartProps) {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis 
-                dataKey="label" 
-                tick={{ fontSize: 10 }} 
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10 }}
                 interval="preserveStartEnd"
                 stroke="#64748b"
               />
-              <YAxis 
-                domain={[40, 180]} 
-                tick={{ fontSize: 10 }} 
+              <YAxis
+                domain={[40, 180]}
+                tick={{ fontSize: 10 }}
                 stroke="#64748b"
               />
-              <Tooltip 
-                contentStyle={{ 
-                  borderRadius: '8px', 
+              <Tooltip
+                contentStyle={{
+                  borderRadius: '8px',
                   border: '1px solid #e2e8f0',
                   fontSize: '12px'
                 }}
               />
               <ReferenceLine y={120} stroke="#10b981" strokeDasharray="3 3" strokeOpacity={0.5} label={{ value: 'Normal', fontSize: 10, fill: '#10b981' }} />
               <ReferenceLine y={130} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} />
-              <Line 
-                type="monotone" 
-                dataKey="systolic" 
-                stroke="#ef4444" 
+              <Line
+                type="monotone"
+                dataKey="systolic"
+                stroke="#ef4444"
                 strokeWidth={2}
                 dot={{ r: 3, fill: '#ef4444' }}
                 name="Systolic"
               />
-              <Line 
-                type="monotone" 
-                dataKey="diastolic" 
-                stroke="#3b82f6" 
+              <Line
+                type="monotone"
+                dataKey="diastolic"
+                stroke="#3b82f6"
                 strokeWidth={2}
                 dot={{ r: 3, fill: '#3b82f6' }}
                 name="Diastolic"
