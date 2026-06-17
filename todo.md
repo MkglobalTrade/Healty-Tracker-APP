@@ -1,93 +1,86 @@
-# Health Command Center - Project TODO
+# Health Command Center v2 - TODO
 
-## Database & Schema
-- [x] Create database tables for glucose readings, blood pressure, medications, lab documents, and health news
-- [x] Set up Drizzle ORM schema with proper relationships
-- [x] Generate and apply database migrations
+## Database & Backend
+- [ ] Create Drizzle schema for glucose readings
+- [ ] Create Drizzle schema for blood pressure readings
+- [ ] Create Drizzle schema for medications
+- [ ] Create Drizzle schema for medication doses (tracking taken doses)
+- [ ] Create Drizzle schema for lab uploads and extracted data
+- [ ] Create Drizzle schema for chat messages
+- [ ] Create Drizzle schema for health news articles
+- [ ] Generate and apply database migrations via webdev_execute_sql
+- [ ] Create tRPC procedures for glucose CRUD operations
+- [ ] Create tRPC procedures for blood pressure CRUD operations
+- [ ] Create tRPC procedures for medication CRUD operations
+- [ ] Create tRPC procedures for medication dose tracking
+- [ ] Create tRPC procedures for lab file uploads and extraction
+- [ ] Create tRPC procedures for chat message history and LLM integration
+- [ ] Create tRPC procedures for health news feed
 
-## Backend (tRPC Procedures)
-- [x] Create glucose tracker procedures (add, list)
-- [x] Create blood pressure procedures (add, list)
-- [x] Create medication procedures (add, list)
-- [x] Create medication doses procedures (add, markTaken, listToday)
-- [x] Create lab documents procedures (add, list)
-- [x] Create chat procedures with LLM integration (send, history)
-- [x] Create health news procedures (list with category filter)
+## Frontend - Layout & Navigation
+- [ ] Customize DashboardLayout sidebar with health-specific navigation
+- [ ] Add user profile section to sidebar
+- [ ] Create logout functionality
+- [ ] Set up routing for all pages (Home, Glucose, BloodPressure, Medications, Labs, Chat, News)
 
-## Dashboard (Home Page)
-- [x] Display today's glucose level summary card
-- [x] Display today's blood pressure summary card
-- [x] Display medication schedule for today (Day/Night split)
-- [x] Create line chart for glucose trends (last 7 days)
-- [x] Create chart for blood pressure trends (last 7 days)
-- [x] Add "Overall Status" indicator card
-- [x] Implement responsive dashboard layout
+## Frontend - Dashboard Home Page
+- [ ] Create summary cards for today's glucose, blood pressure, and medication schedule
+- [ ] Build 7-day trend charts for glucose and blood pressure
+- [ ] Display quick stats (average, min, max)
+- [ ] Show upcoming medication reminders
 
-## Glucose Tracker
-- [x] Create form to log glucose readings (value, date, time)
-- [x] Store glucose readings in database
-- [x] Display glucose history table with all readings
-- [x] Create line chart showing glucose trends over time
-- [x] Create bar chart for glucose readings
-- [x] Show glucose statistics (average, min, max)
+## Frontend - Glucose Tracker
+- [ ] Create form to log glucose readings (value, date, time)
+- [ ] Build history table with sorting and filtering
+- [ ] Create line chart for glucose trends
+- [ ] Create bar chart for glucose distribution
+- [ ] Display statistics (average, min, max, standard deviation)
 
-## Blood Pressure Tracker
-- [x] Create form to log BP readings (systolic, diastolic, pulse, date, time)
-- [x] Store BP readings in database
-- [x] Display BP history table with all readings
-- [x] Create trend chart for systolic/diastolic over time
-- [x] Show BP statistics (average, min, max)
+## Frontend - Blood Pressure Tracker
+- [ ] Create form to log BP readings (systolic, diastolic, pulse, date, time)
+- [ ] Build history table with sorting and filtering
+- [ ] Create trend chart for systolic/diastolic over time
+- [ ] Display statistics (average, min, max for each metric)
 
-## Medication Manager
-- [x] Create form to add medications with name, dosage, frequency
-- [x] Split medications into Day and Night schedules
-- [x] Display medications organized by schedule
-- [x] Display medication history in table
-- [x] Show medication status (active/inactive)
+## Frontend - Medication Manager
+- [ ] Create form to add medications (name, dosage, frequency)
+- [ ] Organize medications into Day and Night categories
+- [ ] Build UI to mark doses as taken/not taken
+- [ ] Display medication schedule for today
+- [ ] Show medication history and adherence stats
 
-## Upload Labs Section
-- [x] Create file upload interface (PDF, JPG, PNG support)
-- [x] Simulate file storage and AI extraction
-- [x] Display extracted health data
-- [x] Store lab metadata in database
-- [x] Display upload status and extracted information
+## Frontend - Upload Labs Section
+- [ ] Create file upload interface (PDF, JPG, PNG support)
+- [ ] Simulate AI extraction of health data from files
+- [ ] Display extracted results in a readable format
+- [ ] Store upload history with extracted data
 
-## AI Doctor Chat Agent
-- [x] Create chat interface component
-- [x] Implement chat message history storage
-- [x] Integrate LLM API for conversational responses
-- [x] Add context awareness (user's health data)
-- [x] Display chat messages with proper formatting
-- [x] Handle LLM responses
+## Frontend - AI Doctor Chat
+- [ ] Create chat message interface with message history
+- [ ] Build message input form
+- [ ] Integrate LLM with user health context (glucose, BP, meds)
+- [ ] Render responses with markdown support (using Streamdown)
+- [ ] Display loading states during LLM processing
+- [ ] Persist chat history in database
 
-## Health News Feed
-- [x] Create news display component
-- [x] Integrate with health news procedures
-- [x] Display news feed with article previews
-- [x] Add filters (topic, category)
-- [x] Show article source and publish date
+## Frontend - Health News Feed
+- [ ] Create news feed display with article cards
+- [ ] Add category filter functionality
+- [ ] Show source and publish date for each article
+- [ ] Implement article link navigation
 
-## Navigation & Layout
-- [x] Create main navigation with sidebar
-- [x] Add all health tracking pages to navigation
-- [x] Implement responsive sidebar navigation
-- [x] Add user profile section with logout
-- [x] Ensure consistent styling across all pages
-
-## Authentication & Security
-- [x] Verify OAuth integration is working
-- [x] Ensure protected routes are secured
-- [x] Validate file uploads for security
+## Design & Styling
+- [ ] Choose professional color palette for health app
+- [ ] Apply consistent spacing and typography
+- [ ] Ensure responsive design for mobile and desktop
+- [ ] Add smooth transitions and micro-interactions
+- [ ] Test accessibility and keyboard navigation
 
 ## Testing & Deployment
-- [ ] Write unit tests for critical functions
-- [ ] Test all features in development
-- [ ] Verify responsive design on mobile
-- [ ] Create checkpoint before deployment
-- [ ] Prepare for Vercel deployment
-
-## Styling & Design
-- [x] Choose color palette for health-focused app (blue/gradient theme)
-- [x] Implement consistent typography
-- [x] Ensure accessibility
-- [x] Responsive design implementation
+- [ ] Write vitest tests for database procedures
+- [ ] Write vitest tests for tRPC mutations and queries
+- [ ] Test all CRUD operations locally
+- [ ] Verify charts render correctly with sample data
+- [ ] Test LLM integration with health context
+- [ ] Create initial checkpoint
+- [ ] Verify deployment to Vercel works without errors
