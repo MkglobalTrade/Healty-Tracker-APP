@@ -1,280 +1,212 @@
-# 🏥 Health Command Center
+# VitaTrack - Your Personal Health Companion
 
-A personal health tracking application built with React and Vite. Track glucose levels, blood pressure, medications, lab results, and get AI-powered health insights powered by Claude.
+A comprehensive health tracking application built with Next.js, React, and Tailwind CSS. Deploy seamlessly on Vercel.
 
-**Live Demo**: Deploy to Vercel in 5 minutes (see [DEPLOYMENT.md](DEPLOYMENT.md))
+![VitaTrack](https://img.shields.io/badge/VitaTrack-Health%20Tracker-0ea5e9)
+![Next.js](https://img.shields.io/badge/Next.js-14-black)
+![React](https://img.shields.io/badge/React-18-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue)
 
----
+## Features
 
-## ✨ Features
+### Home Dashboard
+- **At-a-glance health overview** with latest glucose, blood pressure, and medication status
+- **Interactive charts** for glucose and blood pressure trends
+- **Today's summary** with color-coded status indicators
+- **Quick actions** for fast navigation to key features
+- **7-day averages** and statistics
 
-### 📊 Dashboard
-- **Overall Health Status**: Aggregated indicator combining glucose, blood pressure, and lab results
-- **Trend Charts**: 7-day line charts for glucose and blood pressure with clinical reference ranges
-- **Latest Readings**: Quick view of most recent glucose and BP measurements
-- **Medication Schedule**: Day/Night organized medication list
+### Upload & Lab Results
+- **Upload lab reports** via PDF or photo (drag & drop supported)
+- **Auto-categorization** into 10 categories: Blood Work, Metabolic, Lipid, Thyroid, Vitamins, Hormones, Urinalysis, Imaging, Stelo CGM, and Other
+- **Glucose tracking** with meal context (fasting, before/after meals, bedtime)
+- **Stelo CGM photo upload** - capture screenshots from your Dexcom Stelo app
+- **Smart status** classification (Normal, Elevated, High, Low)
 
-### 📤 Lab Upload & Entry
-- **AI Lab Analysis**: Upload PDF or image of lab reports for automatic value extraction
-- **Quick Entry**: Manual glucose and blood pressure entry with date selection
-- **Auto-Integration**: Extracted values automatically feed into trend charts
-- **Status Categorization**: Green (normal), Yellow (watch), Red (critical)
+### Blood Pressure
+- **Daily BP logging** with systolic, diastolic, and pulse
+- **ACC/AHA classification** (Normal, Elevated, Stage 1, Stage 2, Crisis)
+- **Trend charts** showing 14-day history
+- **Time-of-day tracking** (morning, afternoon, evening, night)
 
-### 💊 Medication Management
-- **Add Medications**: Name, dosage, and frequency (morning, night, or twice daily)
-- **Schedule Organization**: Medications grouped by time of day
-- **Easy Management**: Add or delete medications with one click
+### Medications
+- **Morning & Evening routines** with checkable lists
+- **Flexible scheduling** (morning only, evening only, or both)
+- **Dosage tracking** with notes
+- **Daily compliance** visualization
 
-### 📋 History & Reports
-- **Complete Activity Log**: Chronological view of all entries
-- **Download Report**: Generate HTML report with all health data (printable to PDF)
-- **Full Audit Trail**: Every entry includes date, type, value, and source
+### Dr. AI
+- **Personal health chatbot** with awareness of your data
+- **Context-aware responses** referencing your glucose, BP, medications, and labs
+- **Suggested questions** for quick access
+- **General health information** on glucose, BP, medications, labs, and longevity
 
-### 🤖 AI Doctor Chat
-- **Context-Aware**: Chat has access to your latest glucose, BP, labs, and medications
-- **Clinical Analysis**: Ask questions like "Is my glucose trend improving?"
-- **Message History**: Maintains conversation context
-- **Real-Time Analysis**: Uses Claude Sonnet 4 for accurate health insights
+### Health News
+- **Curated articles** on longevity, breakthroughs, and health debates
+- **Category filtering** (Breakthrough, Research, Technology, Neuroscience, Longevity)
+- **Auto-refresh** capability
 
-### 📰 Health News
-- **Curated Topics**: Longevity research, glucose management, cardiovascular health
-- **Auto-Refresh**: Updates every 3 hours while app is open
-- **Web Search Integration**: Claude searches the web for latest health news
-- **Topic Filtering**: Color-coded by category for quick scanning
+### PDF Export
+- **Comprehensive health report** generation
+- **30-day statistics** summary
+- **Complete data export** including glucose, BP, medications, and labs
+- **Print-ready format** for healthcare provider visits
 
-### 👤 User Profile
-- **Profile Photo**: Upload and display personal photo
-- **Personal Info**: Name, birth date, and age automatically calculated
-- **Persistent Storage**: All data saved to browser localStorage
+## Tech Stack
 
----
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **State Management**: React Hooks + localStorage
+- **Database**: Prisma + SQLite (ready for production upgrade)
+- **Charts**: Recharts
+- **PDF Generation**: jsPDF
+- **AI**: OpenAI GPT-4o-mini (optional, with fallback)
 
-## 🚀 Quick Start
+## Quick Start
+
+### Prerequisites
+- Node.js 18+ and npm
+- GitHub account
+- Vercel account (free)
 
 ### Local Development
 
 ```bash
-# 1. Install dependencies
-pnpm install
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/health-tracker.git
+cd health-tracker
 
-# 2. Build frontend
-pnpm build
+# Install dependencies
+npm install
 
-# 3. Set up environment variables
-cp .env.local.example .env.local
-# Edit .env.local and add your ANTHROPIC_API_KEY
+# Set up environment variables
+cp .env.example .env.local
 
-# 4. Run development server
-pnpm start
+# Generate Prisma client
+npm run db:generate
+
+# Start development server
+npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### Deploy to Vercel
+### Vercel Deployment
 
-1. Push code to GitHub
-2. Go to [vercel.com](https://vercel.com) and import the repository
-3. Add `ANTHROPIC_API_KEY` to environment variables
-4. Deploy!
+#### Option 1: GitHub Integration (Recommended)
 
-Every push to GitHub automatically redeploys the app.
+1. **Push to GitHub**:
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/health-tracker.git
+git push -u origin main
+```
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
+2. **Connect to Vercel**:
+   - Go to [vercel.com](https://vercel.com)
+   - Click "New Project"
+   - Import your GitHub repository
+   - Framework Preset: Next.js
+   - Click "Deploy"
 
----
+3. **Environment Variables** (Optional):
+   - Go to Project Settings → Environment Variables
+   - Add `OPENAI_API_KEY` for AI features (optional)
+   - Add `DATABASE_URL` for server-side database (optional)
 
-## 📚 Documentation
+#### Option 2: Vercel CLI
+```bash
+npm i -g vercel
+vercel
+```
 
-- **[README_DEVELOPMENT.md](README_DEVELOPMENT.md)** — Local development setup and troubleshooting
-- **[FEATURES.md](FEATURES.md)** — Complete feature documentation with use cases
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** — Step-by-step deployment to Vercel
-- **[TESTING.md](TESTING.md)** — Manual testing checklist for all features
-
----
-
-## 🏗️ Project Structure
+## Project Structure
 
 ```
-Healty-Tracker-APP/
+health-tracker/
 ├── src/
-│   ├── App.jsx          # Main React component (all UI)
-│   └── main.jsx         # React entry point
-├── api/
-│   └── claude.js        # Vercel serverless function for Anthropic API
-├── dist/                # Built frontend (generated by pnpm build)
-├── server.js            # Local development server
-├── index.html           # HTML template
-├── vite.config.ts       # Vite configuration
-├── tailwind.config.js   # Tailwind CSS configuration
-├── tsconfig.json        # TypeScript configuration
-└── package.json         # Project dependencies and scripts
+│   ├── app/              # Next.js App Router pages
+│   │   ├── page.tsx      # Home Dashboard
+│   │   ├── upload/       # Lab & Sugar Upload
+│   │   ├── blood-pressure/
+│   │   ├── medications/
+│   │   ├── dr-ai/        # AI Chat
+│   │   ├── news/         # Health News
+│   │   └── export/       # PDF Export
+│   ├── components/       # React components
+│   │   ├── ui/           # Base UI components
+│   │   ├── Navigation.tsx
+│   │   ├── BottomNav.tsx
+│   │   ├── StatsCard.tsx
+│   │   ├── HealthChart.tsx
+│   │   └── QuickActions.tsx
+│   ├── hooks/            # Custom React hooks
+│   │   └── useHealthData.ts
+│   ├── lib/              # Utilities
+│   │   ├── utils.ts
+│   │   ├── health-categories.ts
+│   │   └── ai.ts
+│   └── app/
+│       ├── layout.tsx
+│       └── globals.css
+├── prisma/
+│   └── schema.prisma     # Database schema
+├── public/               # Static assets
+├── package.json
+├── next.config.js
+├── tsconfig.json
+└── tailwind.config.js
 ```
 
----
+## Data Storage
 
-## 🛠️ Technology Stack
+By default, VitaTrack uses **localStorage** for browser persistence, making it fully functional without a backend.
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 19, Vite, TypeScript |
-| **Styling** | Tailwind CSS, custom design tokens |
-| **Charts** | Recharts (line charts with reference lines) |
-| **Icons** | Lucide React |
-| **AI** | Anthropic Claude API (Sonnet 4) |
-| **Storage** | Browser localStorage |
-| **Deployment** | Vercel (serverless functions) |
-| **Build** | Vite, esbuild |
+For production with multiple devices or team access, enable the **Prisma database**:
 
----
+1. Update `DATABASE_URL` in `.env.local`
+2. Run `npm run db:push` to sync schema
+3. Switch from localStorage to API calls in `useHealthData.ts`
 
-## 💾 Data Storage
+## Customization
 
-All data is stored in **browser localStorage** under the key `mk-health-center-v1`:
+### Adding New Categories
+Edit `src/lib/health-categories.ts` to add lab categories, meal types, or medication schedules.
 
-- ✅ Your data stays on your device
-- ✅ No server storage required
-- ✅ Works offline (except AI features)
-- ⚠️ Clearing browser data will erase everything
+### AI Features
+The app works without an API key using built-in fallback responses. To enable GPT-4o-mini:
 
-**Backup**: Download your health report regularly for backup (History → Download full report).
+1. Get an OpenAI API key at [platform.openai.com](https://platform.openai.com)
+2. Add `OPENAI_API_KEY` to your Vercel environment variables
 
----
+### Theming
+Modify `tailwind.config.js` to change colors, or edit `src/app/globals.css` for dark mode adjustments.
 
-## 🔐 Security & Privacy
+## Brilliant Ideas Included
 
-- **API Key Security**: Anthropic API key kept secure on server (Vercel serverless)
-- **HTTPS Only**: All communication encrypted
-- **No Tracking**: No analytics or tracking cookies
-- **No Third Parties**: Data not shared with anyone
-- **No Ads**: No advertising
-- **Open Source**: Code is transparent and auditable
+- **Stelo CGM Integration**: Photo upload specifically designed for Dexcom Stelo continuous glucose monitor screenshots
+- **Auto-Categorization**: Smart keyword detection categorizes lab reports automatically
+- **Context-Aware AI**: Dr. AI knows your current health data when answering questions
+- **Visual Health Status**: Color-coded indicators (green/yellow/red) for every reading
+- **Time-of-Day Patterns**: Track how your body changes throughout the day
+- **Export for Doctors**: One-click PDF generation for healthcare appointments
+- **Medication Compliance**: Visual checkboxes with morning/evening split
+- **Longevity Focus**: News section specifically curated for anti-aging and healthspan research
+- **Offline First**: Works entirely in the browser without internet (except AI chat)
+- **Responsive Design**: Mobile-first with bottom navigation, desktop-ready with sidebar
 
----
+## License
 
-## 📊 Clinical References
+MIT License - feel free to use for personal or commercial projects.
 
-### Glucose Ranges (ADA Standards)
-- **Normal Fasting**: 70–99 mg/dL (green)
-- **Prediabetic**: 100–125 mg/dL (yellow)
-- **Diabetic**: ≥126 mg/dL (red)
+## Disclaimer
 
-### Blood Pressure Ranges (AHA Standards)
-- **Normal**: <120/<80 mmHg (green)
-- **Elevated**: 120–129/<80 mmHg (yellow)
-- **Stage 1 Hypertension**: 130–139/80–89 mmHg (yellow)
-- **Stage 2 Hypertension**: ≥140/≥90 mmHg (red)
+VitaTrack is a personal health tracker, not a medical device. Always consult healthcare professionals for diagnosis and treatment decisions. Dr. AI provides general information only and is not a substitute for professional medical advice.
 
 ---
 
-## 🎨 Design
-
-### Color Palette
-- **Background**: Soft white (#F7F8FA)
-- **Panels**: Clean white with subtle shadows
-- **Accent**: Gold (#C9A24B) for primary actions
-- **Status Colors**:
-  - 🟢 Green (#179A52): Normal/healthy
-  - 🟡 Yellow (#C78A00): Borderline/watch
-  - 🔴 Red (#D6453C): Critical/abnormal
-
-### Responsive Design
-- Mobile-first approach
-- Optimized for phones, tablets, and desktops
-- Touch-friendly buttons and inputs
-- Accessible color contrast (WCAG AA)
-
----
-
-## 📱 Browser Support
-
-- Chrome/Edge 90+
-- Firefox 88+
-- Safari 14+
-- Mobile browsers (iOS Safari, Chrome Mobile)
-
----
-
-## 🐛 Troubleshooting
-
-### AI Features Not Working
-**Error**: "ANTHROPIC_API_KEY is not configured"
-- Verify API key is added to environment variables
-- Restart the server after adding the key
-- Check that API key is valid at [console.anthropic.com](https://console.anthropic.com)
-
-### File Upload Failing
-**Error**: "Could not analyze this file"
-- File might be too large (max ~3MB for serverless)
-- Try using a text-based PDF instead of scanned image
-- Compress images before uploading
-
-### Data Not Persisting
-**Error**: Data disappears after refresh
-- Check browser localStorage (DevTools → Application → Local Storage)
-- Ensure you're not in private/incognito mode
-- Try clearing browser cache
-
-### Charts Not Displaying
-**Error**: Blank space where chart should be
-- Add at least 2 readings to display trend chart
-- Check browser console for errors (F12)
-- Verify Recharts is installed correctly
-
-See [README_DEVELOPMENT.md](README_DEVELOPMENT.md) for more troubleshooting.
-
----
-
-## 📈 Performance
-
-- **Load Time**: ~1-2 seconds on typical connection
-- **Build Size**: ~180KB gzipped
-- **Lighthouse Score**: 90+ (excellent)
-- **Responsive**: Smooth interactions on all devices
-
----
-
-## 📝 Disclaimer
-
-This app is for **personal health tracking and general information only**. It is **not medical advice**, diagnosis, or treatment. Always consult with a qualified healthcare provider before making any health decisions.
-
-**Your physician has the final say on all health matters.**
-
----
-
-## 🤝 Contributing
-
-To modify the app:
-1. Edit `src/App.jsx` (all components are in this file)
-2. Run `pnpm build` to rebuild
-3. Restart `pnpm start` to see changes
-4. Test all features before committing
-
----
-
-## 📄 License
-
-MIT License — feel free to use this project for personal or commercial purposes.
-
----
-
-## 🙋 Support
-
-- 📖 Read the [documentation](README_DEVELOPMENT.md)
-- 🐛 Check [TESTING.md](TESTING.md) for testing guide
-- 🚀 See [DEPLOYMENT.md](DEPLOYMENT.md) for deployment help
-- 💬 Open an issue on GitHub for bugs or feature requests
-
----
-
-## 🎯 Next Steps
-
-1. **Deploy to Vercel** — See [DEPLOYMENT.md](DEPLOYMENT.md)
-2. **Get Anthropic API Key** — Visit [console.anthropic.com](https://console.anthropic.com)
-3. **Start Tracking** — Add your first reading to the dashboard
-4. **Download Reports** — Regularly backup your health data
-
----
-
-**Built with ❤️ for personal health tracking**
-
-*Last updated: June 2026*
+Built with care for your health journey. Track smarter, live longer.
