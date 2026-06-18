@@ -1,0 +1,8 @@
+.gitignore
+app.js
+icon.png
+index.html
+manifest.json
+package.json
+style.css
+vercel.json
