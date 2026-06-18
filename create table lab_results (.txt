@@ -1,0 +1,6 @@
+create table lab_results (
+ id uuid primary key default gen_random_uuid(),
+ file_name text,
+ category text,
+ created_at timestamptz default now()
+);

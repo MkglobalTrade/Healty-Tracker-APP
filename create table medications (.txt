@@ -1,0 +1,7 @@
+create table medications (
+ id uuid primary key default gen_random_uuid(),
+ medication_name text,
+ dosage text,
+ morning boolean,
+ evening boolean
+);

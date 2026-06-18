@@ -1,8 +1,80 @@
-.gitignore
-app.js
-icon.png
-index.html
-manifest.json
-package.json
-style.css
-vercel.json
+mk-health-tracker/
+│
+├── package.json
+├── next.config.js
+├── jsconfig.json
+├── .gitignore
+├── .env.example
+├── README.md
+│
+├── public/
+│   ├── favicon.ico
+│   ├── logo.png
+│   └── icons/
+│
+├── database/
+│   ├── schema.sql
+│   ├── policies.sql
+│   └── seed.sql
+│
+├── src/
+│
+│   ├── app/
+│   │
+│   │   ├── layout.js
+│   │   ├── page.js
+│   │   ├── globals.css
+│   │
+│   │   ├── dashboard/
+│   │   │   └── page.js
+│   │
+│   │   ├── glucose/
+│   │   │   └── page.js
+│   │
+│   │   ├── labs/
+│   │   │   └── page.js
+│   │
+│   │   ├── medications/
+│   │   │   └── page.js
+│   │
+│   │   ├── doctor-ai/
+│   │   │   └── page.js
+│   │
+│   │   └── api/
+│   │
+│   │       ├── chat/
+│   │       │   └── route.js
+│   │       │
+│   │       ├── glucose/
+│   │       │   └── route.js
+│   │       │
+│   │       ├── labs/
+│   │       │   └── route.js
+│   │       │
+│   │       └── medications/
+│   │           └── route.js
+│
+│   ├── components/
+│   │
+│   │   ├── Sidebar.js
+│   │   ├── Header.js
+│   │   ├── DashboardCard.js
+│   │   ├── GlucoseForm.js
+│   │   ├── GlucoseTable.js
+│   │   ├── LabUploader.js
+│   │   ├── MedicationForm.js
+│   │   ├── MedicationList.js
+│   │   └── DoctorChat.js
+│
+│   ├── lib/
+│   │
+│   │   ├── openai.js
+│   │   └── supabase.js
+│
+│   └── utils/
+│       ├── glucose.js
+│       ├── bloodpressure.js
+│       └── reports.js
+│
+└── docs/
+    └── screenshots/

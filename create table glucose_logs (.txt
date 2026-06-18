@@ -1,0 +1,6 @@
+create table glucose_logs (
+ id uuid primary key default gen_random_uuid(),
+ glucose integer,
+ reading_time timestamptz default now(),
+ notes text
+);
